@@ -111,8 +111,7 @@ class ResultView(QWidget):
         self._messages.setReadOnly(True)
         self._messages.setPlaceholderText("Query execution messages will appear here…")
         self._messages.appendPlainText(
-            "-- TableFree v0.1.0\n"
-            "-- Ready. Connect to a database to start.\n"
+            "-- TableFree v0.1.0\n-- Ready. Connect to a database to start.\n"
         )
         msg_layout.addWidget(self._messages)
         self._tabs.addTab(messages_widget, "Messages")
@@ -130,3 +129,37 @@ class ResultView(QWidget):
         self._tabs.addTab(history_widget, "History")
 
         layout.addWidget(self._tabs, stretch=1)
+
+    def append_message(self, message: str) -> None:
+        self._messages.appendPlainText(message)
+        self._tabs.setCurrentIndex(1)
+
+    def display_results(self, results: list[dict] | list[tuple]) -> None:
+        if not results:
+            self._table.setRowCount(0)
+            self._rows_label.setText("0 rows")
+            return
+
+        if isinstance(results[0], dict):
+            columns = list(results[0].keys())
+            self._table.setColumnCount(len(columns))
+            self._table.setHorizontalHeaderLabels(columns)
+            self._table.setRowCount(len(results))
+            for row_idx, row in enumerate(results):
+                for col_idx, col in enumerate(columns):
+                    value = str(row.get(col, ""))
+                    item = QTableWidgetItem(value)
+                    self._table.setItem(row_idx, col_idx, item)
+        else:
+            num_cols = len(results[0]) if results else 0
+            self._table.setColumnCount(num_cols)
+            self._table.setHorizontalHeaderLabels(
+                [f"Column {i + 1}" for i in range(num_cols)]
+            )
+            self._table.setRowCount(len(results))
+            for row_idx, row in enumerate(results):
+                for col_idx, value in enumerate(row):
+                    item = QTableWidgetItem(str(value))
+                    self._table.setItem(row_idx, col_idx, item)
+
+        self._rows_label.setText(f"{len(results)} rows")

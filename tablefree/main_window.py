@@ -1,5 +1,6 @@
 """MainWindow — Core application window with three-panel layout."""
 
+import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -13,9 +14,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from tablefree.db.manager import ConnectionManager
+from tablefree.widgets.connection_dialog import ConnectionDialog
 from tablefree.widgets.editor import EditorPanel
 from tablefree.widgets.result_view import ResultView
 from tablefree.widgets.sidebar import Sidebar
+from tablefree.workers.query_worker import QueryWorker
 
 _ROOT = Path(__file__).resolve().parent.parent
 _RESOURCES = _ROOT / "resources"
@@ -27,6 +31,8 @@ class MainWindow(QMainWindow):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._is_dark = True  # start with dark theme
+        self._conn_manager = ConnectionManager()
+        self._active_driver = None
         self._setup_window()
         self._setup_menu_bar()
         self._setup_layout()
@@ -59,6 +65,12 @@ class MainWindow(QMainWindow):
 
         # File
         file_menu = menu_bar.addMenu("&File")
+
+        new_connection = QAction("New Connection", self)
+        new_connection.setShortcut("Ctrl+Shift+N")
+        new_connection.setStatusTip("Open connection dialog")
+        new_connection.triggered.connect(self._open_connection_dialog)
+        file_menu.addAction(new_connection)
 
         new_query = QAction("New Query Tab", self)
         new_query.setShortcut("Ctrl+N")
@@ -129,25 +141,21 @@ class MainWindow(QMainWindow):
     # ── Layout ───────────────────────────────────────────────
 
     def _setup_layout(self) -> None:
-        # Sidebar (left)
         self._sidebar = Sidebar()
         self._sidebar.setMinimumWidth(200)
 
-        # Editor (center-top)
         self._editor = EditorPanel()
+        self._editor.query_submitted.connect(self._execute_query)
 
-        # Result view (center-bottom)
         self._result_view = ResultView()
         self._result_view.setMinimumHeight(100)
 
-        # Vertical splitter: editor on top, results on bottom
         self._v_splitter = QSplitter(Qt.Orientation.Vertical)
         self._v_splitter.addWidget(self._editor)
         self._v_splitter.addWidget(self._result_view)
         self._v_splitter.setSizes([450, 250])
         self._v_splitter.setChildrenCollapsible(False)
 
-        # Horizontal splitter: sidebar on left, vertical splitter on right
         self._h_splitter = QSplitter(Qt.Orientation.Horizontal)
         self._h_splitter.addWidget(self._sidebar)
         self._h_splitter.addWidget(self._v_splitter)
@@ -197,3 +205,63 @@ class MainWindow(QMainWindow):
             self.setStyleSheet(stylesheet)
         else:
             self.setStyleSheet("")
+
+    def _open_connection_dialog(self) -> None:
+        dialog = ConnectionDialog(self._conn_manager, self)
+        if dialog.exec():
+            self._active_driver = dialog.active_driver
+            if self._active_driver:
+                name = self._active_driver.config.name or "Unnamed"
+                self._conn_indicator.setText(f"●  Connected to {name}")
+                self._conn_indicator.setObjectName("status-connection-active")
+                self._conn_indicator.style().unpolish(self._conn_indicator)
+                self._conn_indicator.style().polish(self._conn_indicator)
+                self._sidebar.set_driver(self._active_driver)
+                self._editor.set_driver(self._active_driver)
+
+    def _execute_query(self, sql: str) -> None:
+        if not self._active_driver:
+            self._result_view.append_message(
+                "No active connection. Please connect to a database first."
+            )
+            self._editor.set_query_complete()
+            return
+
+        self._query_start_time = time.perf_counter()
+
+        worker = QueryWorker(self._active_driver.execute, sql)
+        worker.signals.finished.connect(self._on_query_finished)
+        worker.signals.error.connect(self._on_query_error)
+
+        from PySide6.QtCore import QThreadPool
+
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_query_finished(self, result: object) -> None:
+        elapsed = (time.perf_counter() - self._query_start_time) * 1000
+        self._editor.set_query_info(f"{elapsed:.0f} ms")
+        self._editor.set_query_complete()
+
+        if isinstance(result, list):
+            self._result_view.display_results(result)
+            self._result_view.append_message(
+                f"Query executed successfully. {len(result)} rows returned."
+            )
+        elif isinstance(result, tuple):
+            rows_affected, _ = result
+            self._result_view.append_message(
+                f"Query executed successfully. {rows_affected} rows affected."
+            )
+        else:
+            self._result_view.append_message(f"Query executed successfully.")
+
+    def _on_query_error(self, error: Exception) -> None:
+        elapsed = (time.perf_counter() - self._query_start_time) * 1000
+        self._editor.set_query_info(f"{elapsed:.0f} ms")
+        self._editor.set_query_complete()
+        self._result_view.append_message(f"Error: {str(error)}")
+
+    def closeEvent(self, event) -> None:
+        self._sidebar.clear()
+        self._conn_manager.close_all()
+        super().closeEvent(event)

@@ -1,11 +1,13 @@
 """Editor panel widget — Tabbed query editor with toolbar."""
 
-from PySide6.QtCore import Qt
+import sqlparse
+
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QTabWidget,
@@ -13,15 +15,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from tablefree.widgets.code_editor import CodeEditor
+
 
 class EditorPanel(QWidget):
     """Center panel: tabbed SQL query editor with action toolbar."""
 
     _tab_counter: int = 1
 
+    query_submitted = Signal(str)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("editor-panel")
+        self._driver = None
+        self._query_running = False
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -29,58 +37,53 @@ class EditorPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Toolbar ──────────────────────────────────────────
         toolbar = QWidget()
         toolbar.setObjectName("editor-toolbar")
         tb_layout = QHBoxLayout(toolbar)
         tb_layout.setContentsMargins(8, 4, 8, 4)
         tb_layout.setSpacing(6)
 
-        # Run button
-        run_btn = QPushButton("▶  Run")
-        run_btn.setObjectName("toolbar-btn-primary")
-        run_btn.setToolTip("Execute query (Ctrl+Enter)")
-        run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        tb_layout.addWidget(run_btn)
+        self._run_btn = QPushButton("▶  Run")
+        self._run_btn.setObjectName("toolbar-btn-primary")
+        self._run_btn.setToolTip("Execute query (Ctrl+Enter)")
+        self._run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._run_btn.clicked.connect(self._on_run)
+        tb_layout.addWidget(self._run_btn)
 
-        # Run selection button
-        run_sel_btn = QPushButton("▶▶  Run Selection")
-        run_sel_btn.setObjectName("toolbar-btn")
-        run_sel_btn.setToolTip("Execute selected text")
-        run_sel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        tb_layout.addWidget(run_sel_btn)
+        self._run_sel_btn = QPushButton("▶▶  Run Selection")
+        self._run_sel_btn.setObjectName("toolbar-btn")
+        self._run_sel_btn.setToolTip("Execute selected text (Ctrl+Shift+Enter)")
+        self._run_sel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._run_sel_btn.clicked.connect(self._on_run_selection)
+        tb_layout.addWidget(self._run_sel_btn)
 
-        # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.VLine)
         sep.setObjectName("toolbar-separator")
         sep.setFixedHeight(20)
         tb_layout.addWidget(sep)
 
-        # Format button
-        fmt_btn = QPushButton("✨  Format")
-        fmt_btn.setObjectName("toolbar-btn")
-        fmt_btn.setToolTip("Beautify SQL")
-        fmt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        tb_layout.addWidget(fmt_btn)
+        self._fmt_btn = QPushButton("✨  Format")
+        self._fmt_btn.setObjectName("toolbar-btn")
+        self._fmt_btn.setToolTip("Beautify SQL")
+        self._fmt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._fmt_btn.clicked.connect(self._on_format)
+        tb_layout.addWidget(self._fmt_btn)
 
         tb_layout.addStretch()
 
-        # Timer / row count label
         self._info_label = QLabel("")
         self._info_label.setObjectName("editor-info")
         tb_layout.addWidget(self._info_label)
 
         layout.addWidget(toolbar)
 
-        # ── Separator ────────────────────────────────────────
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setObjectName("editor-separator")
         line.setFixedHeight(1)
         layout.addWidget(line)
 
-        # ── Tab widget ───────────────────────────────────────
         self._tabs = QTabWidget()
         self._tabs.setObjectName("editor-tabs")
         self._tabs.setTabsClosable(True)
@@ -88,7 +91,6 @@ class EditorPanel(QWidget):
         self._tabs.setDocumentMode(True)
         self._tabs.tabCloseRequested.connect(self._close_tab)
 
-        # "+" button to add new tabs
         add_tab_btn = QPushButton(" + ")
         add_tab_btn.setObjectName("add-tab-btn")
         add_tab_btn.setToolTip("New query tab")
@@ -97,20 +99,18 @@ class EditorPanel(QWidget):
         add_tab_btn.clicked.connect(self._new_tab)
         self._tabs.setCornerWidget(add_tab_btn, Qt.Corner.TopRightCorner)
 
-        # Start with one default tab
         self._add_tab("Query 1")
         layout.addWidget(self._tabs, stretch=1)
 
     def _add_tab(self, title: str) -> None:
-        editor = QPlainTextEdit()
+        editor = CodeEditor()
         editor.setObjectName("sql-editor")
         editor.setPlaceholderText(
             "-- Write your SQL queries here…\n"
             "-- Press Ctrl+Enter to execute\n\n"
             "SELECT * FROM users LIMIT 100;"
         )
-        editor.setTabStopDistance(32.0)
-        editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        editor.installEventFilter(self)
         self._tabs.addTab(editor, title)
         self._tabs.setCurrentWidget(editor)
 
@@ -121,3 +121,108 @@ class EditorPanel(QWidget):
     def _close_tab(self, index: int) -> None:
         if self._tabs.count() > 1:
             self._tabs.removeTab(index)
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if isinstance(event, QKeyEvent):
+            if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                if event.key() == Qt.Key.Key_Return:
+                    self._on_run()
+                    return True
+        return super().eventFilter(obj, event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_Return:
+                self._on_run()
+                event.accept()
+                return
+            elif event.modifiers() == (
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+            ):
+                if event.key() == Qt.Key.Key_Return:
+                    self._on_run_selection()
+                    event.accept()
+                    return
+        super().keyPressEvent(event)
+
+    def _on_run(self) -> None:
+        sql = self.current_sql()
+        if sql.strip():
+            self._set_running_state(True)
+            self.query_submitted.emit(sql)
+
+    def _on_run_selection(self) -> None:
+        editor = self.current_editor()
+        if editor is None:
+            return
+
+        cursor = editor.textCursor()
+        if cursor.hasSelection():
+            sql = cursor.selectedText()
+        else:
+            sql = self._find_statement_at_cursor(
+                editor.toPlainText(), cursor.position()
+            )
+
+        if sql.strip():
+            self._set_running_state(True)
+            self.query_submitted.emit(sql)
+
+    def _on_format(self) -> None:
+        editor = self.current_editor()
+        if editor is None:
+            return
+
+        sql = editor.toPlainText()
+        if sql.strip():
+            formatted = sqlparse.format(sql, reindent=True, keyword_case="upper")
+            cursor = editor.textCursor()
+            cursor_position = cursor.position()
+            editor.setPlainText(formatted)
+            if cursor_position <= len(formatted):
+                cursor.setPosition(cursor_position)
+                editor.setTextCursor(cursor)
+
+    def _find_statement_at_cursor(self, text: str, cursor_position: int) -> str:
+        statements = sqlparse.split(text)
+        pos = 0
+        for stmt in statements:
+            stripped = stmt.strip()
+            if not stripped:
+                continue
+            idx = text.find(stripped, pos)
+            if idx == -1:
+                continue
+            start = idx
+            end = idx + len(stripped)
+            if start <= cursor_position <= end:
+                return stripped
+            pos = end
+        return text.strip()
+
+    def set_driver(self, driver) -> None:
+        self._driver = driver
+
+    def set_query_complete(self) -> None:
+        self._set_running_state(False)
+
+    def set_query_info(self, info: str) -> None:
+        self._info_label.setText(info)
+
+    def _set_running_state(self, running: bool) -> None:
+        self._query_running = running
+        self._run_btn.setEnabled(not running)
+        self._run_sel_btn.setEnabled(not running)
+        self._fmt_btn.setEnabled(not running)
+
+    def current_editor(self) -> CodeEditor | None:
+        widget = self._tabs.currentWidget()
+        if isinstance(widget, CodeEditor):
+            return widget
+        return None
+
+    def current_sql(self) -> str:
+        editor = self.current_editor()
+        if editor is None:
+            return ""
+        return editor.toPlainText()

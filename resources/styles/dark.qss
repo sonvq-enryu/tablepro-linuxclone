@@ -517,3 +517,133 @@ QToolTip {
     padding: 6px 10px;
     font-size: 12px;
 }
+
+/* ====================================================
+   CONNECTION DIALOG
+   ==================================================== */
+
+QDialog#connection-dialog {
+    background-color: #1e1e2e;
+}
+
+QWidget#connection-list-panel {
+    background-color: #181825;
+    border-right: 1px solid #313244;
+}
+
+QLabel#connection-list-title {
+    color: #cdd6f4;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+QListWidget#connection-list {
+    background-color: #181825;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    outline: 0;
+}
+
+QListWidget#connection-list::item {
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 2px 4px;
+}
+
+QListWidget#connection-list::item:hover {
+    background-color: #1e1e2e;
+}
+
+QListWidget#connection-list::item:selected {
+    background-color: #313244;
+    color: #cba6f7;
+}
+
+QWidget#connection-form-panel {
+    background-color: #1e1e2e;
+}
+
+QLabel#connection-form-title {
+    color: #cdd6f4;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+QLineEdit, QSpinBox, QComboBox {
+    background-color: #181825;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    font-size: 13px;
+    min-height: 20px;
+}
+
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
+    border: 1px solid #cba6f7;
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 24px;
+}
+
+QComboBox::down-arrow {
+    image: none; /* Can be replaced with an icon if available */
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid #a6adc8;
+    margin-right: 8px;
+}
+
+QDialog QPushButton {
+    background-color: transparent;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+QDialog QPushButton:hover {
+    background-color: #313244;
+    color: #cdd6f4;
+    border-color: #45475a;
+}
+
+QDialog QPushButton:pressed {
+    background-color: #45475a;
+}
+
+QPushButton#dialog-action-btn-primary {
+    background-color: #7c3aed;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton#dialog-action-btn-primary:hover {
+    background-color: #8b5cf6;
+}
+
+QPushButton#dialog-action-btn-primary:pressed {
+    background-color: #6d28d9;
+}
+
+QLabel#conn-status-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QLabel#status-connection-active {
+    color: #98c379;
+    font-size: 12px;
+    padding: 0 4px;
+}
