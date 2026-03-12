@@ -5,7 +5,7 @@ from typing import Any
 import mysql.connector
 
 from tablefree.db.config import ConnectionConfig
-from tablefree.db.driver import ColumnInfo, DatabaseDriver, IndexInfo
+from tablefree.db.driver import ColumnInfo, DatabaseDriver, ForeignKeyInfo, IndexInfo
 
 # System databases that should be excluded from schema listings.
 _SYSTEM_DATABASES = frozenset(
@@ -49,9 +49,7 @@ class MySQLDriver(DatabaseDriver):
             self._connection.close()
             self._connection = None
 
-    def execute(
-        self, query: str, params: tuple | None = None
-    ) -> list[dict[str, Any]]:
+    def execute(self, query: str, params: tuple | None = None) -> list[dict[str, Any]]:
         if self._connection is None:
             raise RuntimeError("Not connected — call connect() first")
         cursor = self._connection.cursor(dictionary=True)
@@ -91,9 +89,7 @@ class MySQLDriver(DatabaseDriver):
         key = "TABLE_NAME" if rows and "TABLE_NAME" in rows[0] else "table_name"
         return [r[key] for r in rows]
 
-    def get_columns(
-        self, table: str, schema: str | None = None
-    ) -> list[ColumnInfo]:
+    def get_columns(self, table: str, schema: str | None = None) -> list[ColumnInfo]:
         schema = schema or self._config.database
         rows = self.execute(
             """
@@ -113,16 +109,16 @@ class MySQLDriver(DatabaseDriver):
             ColumnInfo(
                 name=r.get("COLUMN_NAME") or r.get("column_name", ""),
                 data_type=r.get("DATA_TYPE") or r.get("data_type", ""),
-                is_nullable=(r.get("IS_NULLABLE") or r.get("is_nullable", "NO")) == "YES",
+                is_nullable=(r.get("IS_NULLABLE") or r.get("is_nullable", "NO"))
+                == "YES",
                 column_default=r.get("COLUMN_DEFAULT") or r.get("column_default"),
-                ordinal_position=r.get("ORDINAL_POSITION") or r.get("ordinal_position", 0),
+                ordinal_position=r.get("ORDINAL_POSITION")
+                or r.get("ordinal_position", 0),
             )
             for r in rows
         ]
 
-    def get_indexes(
-        self, table: str, schema: str | None = None
-    ) -> list[IndexInfo]:
+    def get_indexes(self, table: str, schema: str | None = None) -> list[IndexInfo]:
         schema = schema or self._config.database
         rows = self.execute(
             """
@@ -155,3 +151,54 @@ class MySQLDriver(DatabaseDriver):
             indexes[idx_name].columns.append(col_name)
 
         return list(indexes.values())
+
+    def get_foreign_keys(
+        self, table: str, schema: str | None = None
+    ) -> list[ForeignKeyInfo]:
+        schema = schema or self._config.database
+        rows = self.execute(
+            """
+            SELECT
+                tc.constraint_name,
+                kcu.column_name,
+                kcu.referenced_table_name,
+                kcu.referenced_column_name,
+                rc.delete_rule,
+                rc.update_rule
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.referential_constraints rc
+                ON tc.constraint_name = rc.constraint_name
+                AND tc.table_schema = rc.constraint_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+                AND tc.table_schema = %s
+                AND tc.table_name = %s
+            """,
+            (schema, table),
+        )
+        return [
+            ForeignKeyInfo(
+                name=r.get("CONSTRAINT_NAME") or r.get("constraint_name", ""),
+                column=r.get("COLUMN_NAME") or r.get("column_name", ""),
+                ref_table=r.get("REFERENCED_TABLE_NAME")
+                or r.get("referenced_table_name", ""),
+                ref_column=r.get("REFERENCED_COLUMN_NAME")
+                or r.get("referenced_column_name", ""),
+                on_delete=r.get("DELETE_RULE") or r.get("delete_rule", "NO ACTION"),
+                on_update=r.get("UPDATE_RULE") or r.get("update_rule", "NO ACTION"),
+            )
+            for r in rows
+        ]
+
+    def get_ddl(self, table: str, schema: str | None = None) -> str:
+        schema = schema or self._config.database
+        rows = self.execute(
+            f"SHOW CREATE TABLE `{schema}`.`{table}`",
+        )
+        if rows:
+            row = rows[0]
+            key = "Create Table" if "Create Table" in row else "create table"
+            return row.get(key, "")
+        return ""

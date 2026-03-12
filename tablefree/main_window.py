@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from tablefree.db.manager import ConnectionManager
+from tablefree.models import QueryResult
 from tablefree.widgets.connection_dialog import ConnectionDialog
 from tablefree.widgets.editor import EditorPanel
 from tablefree.widgets.result_view import ResultView
@@ -143,6 +144,8 @@ class MainWindow(QMainWindow):
     def _setup_layout(self) -> None:
         self._sidebar = Sidebar()
         self._sidebar.setMinimumWidth(200)
+        self._sidebar.table_selected.connect(self._on_table_selected)
+        self._sidebar.structure_requested.connect(self._on_structure_requested)
 
         self._editor = EditorPanel()
         self._editor.query_submitted.connect(self._execute_query)
@@ -227,6 +230,7 @@ class MainWindow(QMainWindow):
             self._editor.set_query_complete()
             return
 
+        self._editor._info_label.setText("Executing...")
         self._query_start_time = time.perf_counter()
 
         worker = QueryWorker(self._active_driver.execute, sql)
@@ -237,29 +241,81 @@ class MainWindow(QMainWindow):
 
         QThreadPool.globalInstance().start(worker)
 
+    def _infer_types(self, rows: list[dict], columns: list[str]) -> list[str]:
+        """Infer column types from Python types of first non-None values."""
+        types = []
+        for col in columns:
+            for row in rows:
+                val = row.get(col)
+                if val is not None:
+                    if isinstance(val, bool):
+                        types.append("boolean")
+                    elif isinstance(val, int):
+                        types.append("integer")
+                    elif isinstance(val, float):
+                        types.append("float")
+                    else:
+                        types.append("text")
+                    break
+            else:
+                types.append("text")
+        return types
+
     def _on_query_finished(self, result: object) -> None:
         elapsed = (time.perf_counter() - self._query_start_time) * 1000
-        self._editor.set_query_info(f"{elapsed:.0f} ms")
-        self._editor.set_query_complete()
+        duration_ms = round(elapsed, 1)
 
-        if isinstance(result, list):
-            self._result_view.display_results(result)
-            self._result_view.append_message(
-                f"Query executed successfully. {len(result)} rows returned."
-            )
+        if isinstance(result, list) and result:
+            if isinstance(result[0], dict):
+                columns = list(result[0].keys())
+                data = [list(r.values()) for r in result]
+                col_types = self._infer_types(result, columns)
+                query_result = QueryResult(
+                    columns=columns,
+                    rows=data,
+                    column_types=col_types,
+                    row_count=len(data),
+                    duration_ms=duration_ms,
+                )
+                self._result_view.display_results(query_result)
+            else:
+                self._result_view.append_message(
+                    f"Query executed successfully ({duration_ms} ms, {len(result)} rows returned)"
+                )
+            self._editor._info_label.setText(f"{len(result)} rows | {duration_ms} ms")
         elif isinstance(result, tuple):
             rows_affected, _ = result
             self._result_view.append_message(
-                f"Query executed successfully. {rows_affected} rows affected."
+                f"Query executed successfully. {rows_affected} rows affected ({duration_ms} ms)."
             )
+            self._editor._info_label.setText(f"{rows_affected} rows | {duration_ms} ms")
         else:
-            self._result_view.append_message(f"Query executed successfully.")
+            self._result_view.append_message(
+                f"Query executed successfully ({duration_ms} ms)"
+            )
+            self._editor._info_label.setText(f"{duration_ms} ms")
+
+        self._editor.set_query_complete()
 
     def _on_query_error(self, error: Exception) -> None:
         elapsed = (time.perf_counter() - self._query_start_time) * 1000
-        self._editor.set_query_info(f"{elapsed:.0f} ms")
+        duration_ms = round(elapsed, 1)
+        self._result_view.display_error(str(error))
+        self._editor._info_label.setText(f"Error | {duration_ms} ms")
         self._editor.set_query_complete()
-        self._result_view.append_message(f"Error: {str(error)}")
+
+    def _on_table_selected(self, schema: str, table: str) -> None:
+        if self._active_driver:
+            driver_type = type(self._active_driver).__name__.lower()
+            if "mysql" in driver_type:
+                sql = f"SELECT * FROM `{schema}`.`{table}` LIMIT 1000"
+            else:
+                sql = f'SELECT * FROM "{schema}"."{table}" LIMIT 1000'
+            self._execute_query(sql)
+
+    def _on_structure_requested(self, schema: str, table: str) -> None:
+        if self._active_driver:
+            self._result_view.show_structure(self._active_driver, table, schema)
 
     def closeEvent(self, event) -> None:
         self._sidebar.clear()

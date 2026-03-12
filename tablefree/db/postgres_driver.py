@@ -6,7 +6,7 @@ import psycopg2
 import psycopg2.extras
 
 from tablefree.db.config import ConnectionConfig
-from tablefree.db.driver import ColumnInfo, DatabaseDriver, IndexInfo
+from tablefree.db.driver import ColumnInfo, DatabaseDriver, ForeignKeyInfo, IndexInfo
 
 
 class PostgreSQLDriver(DatabaseDriver):
@@ -32,9 +32,7 @@ class PostgreSQLDriver(DatabaseDriver):
             self._connection.close()
             self._connection = None
 
-    def execute(
-        self, query: str, params: tuple | None = None
-    ) -> list[dict[str, Any]]:
+    def execute(self, query: str, params: tuple | None = None) -> list[dict[str, Any]]:
         if self._connection is None:
             raise RuntimeError("Not connected — call connect() first")
         with self._connection.cursor(
@@ -74,9 +72,7 @@ class PostgreSQLDriver(DatabaseDriver):
         )
         return [r["table_name"] for r in rows]
 
-    def get_columns(
-        self, table: str, schema: str | None = None
-    ) -> list[ColumnInfo]:
+    def get_columns(self, table: str, schema: str | None = None) -> list[ColumnInfo]:
         schema = schema or "public"
         rows = self.execute(
             """
@@ -103,9 +99,7 @@ class PostgreSQLDriver(DatabaseDriver):
             for r in rows
         ]
 
-    def get_indexes(
-        self, table: str, schema: str | None = None
-    ) -> list[IndexInfo]:
+    def get_indexes(self, table: str, schema: str | None = None) -> list[IndexInfo]:
         schema = schema or "public"
         rows = self.execute(
             """
@@ -137,3 +131,93 @@ class PostgreSQLDriver(DatabaseDriver):
             )
             for r in rows
         ]
+
+    def get_foreign_keys(
+        self, table: str, schema: str | None = None
+    ) -> list[ForeignKeyInfo]:
+        schema = schema or "public"
+        rows = self.execute(
+            """
+            SELECT
+                con.conname AS name,
+                att.attname AS column,
+                ref_cl.relname AS ref_table,
+                ref_att.attname AS ref_column,
+                CASE con.confdeltype
+                    WHEN 'a' THEN 'NO ACTION'
+                    WHEN 'r' THEN 'RESTRICT'
+                    WHEN 'c' THEN 'CASCADE'
+                    WHEN 'n' THEN 'SET NULL'
+                    WHEN 'd' THEN 'SET DEFAULT'
+                END AS on_delete,
+                CASE con.confupdtype
+                    WHEN 'a' THEN 'NO ACTION'
+                    WHEN 'r' THEN 'RESTRICT'
+                    WHEN 'c' THEN 'CASCADE'
+                    WHEN 'n' THEN 'SET NULL'
+                    WHEN 'd' THEN 'SET DEFAULT'
+                END AS on_update
+            FROM pg_constraint con
+            JOIN pg_class cl ON cl.oid = con.conrelid
+            JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+            JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+            JOIN pg_class ref_cl ON ref_cl.oid = con.confrelid
+            JOIN pg_attribute ref_att ON ref_att.attrelid = con.confrelid AND ref_att.attnum = ANY(con.confkey)
+            WHERE con.contype = 'f'
+                AND cl.relname = %s
+                AND ns.nspname = %s
+            """,
+            (table, schema),
+        )
+        return [
+            ForeignKeyInfo(
+                name=r["name"],
+                column=r["column"],
+                ref_table=r["ref_table"],
+                ref_column=r["ref_column"],
+                on_delete=r["on_delete"],
+                on_update=r["on_update"],
+            )
+            for r in rows
+        ]
+
+    def get_ddl(self, table: str, schema: str | None = None) -> str:
+        schema = schema or "public"
+        columns = self.get_columns(table, schema)
+        indexes = self.get_indexes(table, schema)
+        fks = self.get_foreign_keys(table, schema)
+
+        lines = [f'CREATE TABLE "{schema}"."{table}" (']
+        col_lines = []
+        for col in columns:
+            line = f'    "{col.name}" {col.data_type}'
+            if not col.is_nullable:
+                line += " NOT NULL"
+            if col.column_default is not None:
+                line += f" DEFAULT {col.column_default}"
+            col_lines.append(line)
+
+        pk = [i for i in indexes if i.is_primary]
+        if pk:
+            pk_cols = ", ".join(f'"{c}"' for c in pk[0].columns)
+            col_lines.append(f"    PRIMARY KEY ({pk_cols})")
+
+        for fk in fks:
+            col_lines.append(
+                f'    CONSTRAINT "{fk.name}" FOREIGN KEY ("{fk.column}") '
+                f'REFERENCES "{fk.ref_table}" ("{fk.ref_column}") '
+                f"ON DELETE {fk.on_delete} ON UPDATE {fk.on_update}"
+            )
+
+        lines.append(",\n".join(col_lines))
+        lines.append(");")
+
+        for idx in indexes:
+            if not idx.is_primary:
+                unique = "UNIQUE " if idx.is_unique else ""
+                idx_cols = ", ".join(f'"{c}"' for c in idx.columns)
+                lines.append(
+                    f'CREATE {unique}INDEX "{idx.name}" ON "{schema}"."{table}" ({idx_cols});'
+                )
+
+        return "\n".join(lines)

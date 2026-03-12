@@ -22,8 +22,8 @@ from tablefree.db.driver import DatabaseDriver
 from tablefree.workers.query_worker import QueryWorker
 
 _ICON_SCHEMA = "📁"
-_ICON_TABLE = "📋"
-_ICON_COLUMN = "📄"
+_ICON_TABLE = "🗃"
+_ICON_COLUMN = "◉"
 
 
 class Sidebar(QWidget):
@@ -112,10 +112,13 @@ class Sidebar(QWidget):
         """Populate the tree with schema/table data from the driver."""
         self._driver = driver
         self._thread_pool = None
-        if hasattr(driver._connection, "thread_pool"):
-            self._thread_pool = driver._connection.thread_pool
+        if hasattr(driver, "_connection") and driver._connection:
+            if hasattr(driver._connection, "thread_pool"):
+                self._thread_pool = driver._connection.thread_pool
         if self._thread_pool is None:
             self._thread_pool = QThreadPool.globalInstance()
+
+        self._tree.clear()
 
         self._tree.clear()
         self._badge.setText("● Connected")
@@ -156,7 +159,7 @@ class Sidebar(QWidget):
 
         worker = QueryWorker(self._driver.get_tables, schema)
         worker.signals.finished.connect(
-            lambda tables: self._on_tables_loaded(schema_item, tables)
+            lambda tables, item=schema_item: self._on_tables_loaded(item, tables)
         )
         worker.signals.error.connect(self._on_load_error)
         self._thread_pool.start(worker)
@@ -191,7 +194,7 @@ class Sidebar(QWidget):
 
         worker = QueryWorker(self._driver.get_columns, table, schema)
         worker.signals.finished.connect(
-            lambda cols: self._on_columns_loaded(table_item, cols)
+            lambda cols, item=table_item: self._on_columns_loaded(item, cols)
         )
         worker.signals.error.connect(self._on_load_error)
         self._thread_pool.start(worker)

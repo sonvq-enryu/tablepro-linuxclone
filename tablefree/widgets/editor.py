@@ -43,14 +43,14 @@ class EditorPanel(QWidget):
         tb_layout.setContentsMargins(8, 4, 8, 4)
         tb_layout.setSpacing(6)
 
-        self._run_btn = QPushButton("▶  Run")
+        self._run_btn = QPushButton("▶ Run")
         self._run_btn.setObjectName("toolbar-btn-primary")
         self._run_btn.setToolTip("Execute query (Ctrl+Enter)")
         self._run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._run_btn.clicked.connect(self._on_run)
         tb_layout.addWidget(self._run_btn)
 
-        self._run_sel_btn = QPushButton("▶▶  Run Selection")
+        self._run_sel_btn = QPushButton("▶▶ Run Selection")
         self._run_sel_btn.setObjectName("toolbar-btn")
         self._run_sel_btn.setToolTip("Execute selected text (Ctrl+Shift+Enter)")
         self._run_sel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -63,7 +63,7 @@ class EditorPanel(QWidget):
         sep.setFixedHeight(20)
         tb_layout.addWidget(sep)
 
-        self._fmt_btn = QPushButton("✨  Format")
+        self._fmt_btn = QPushButton("☰ Format")
         self._fmt_btn.setObjectName("toolbar-btn")
         self._fmt_btn.setToolTip("Beautify SQL")
         self._fmt_btn.setCursor(Qt.CursorShape.PointingHandCursor)

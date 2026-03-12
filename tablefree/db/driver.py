@@ -28,6 +28,18 @@ class IndexInfo:
     is_primary: bool = False
 
 
+@dataclass
+class ForeignKeyInfo:
+    """Metadata for a single foreign key constraint."""
+
+    name: str
+    column: str
+    ref_table: str
+    ref_column: str
+    on_delete: str
+    on_update: str
+
+
 class DatabaseDriver(ABC):
     """Abstract base class for all database drivers.
 
@@ -65,9 +77,7 @@ class DatabaseDriver(ABC):
         ...
 
     @abstractmethod
-    def execute(
-        self, query: str, params: tuple | None = None
-    ) -> list[dict[str, Any]]:
+    def execute(self, query: str, params: tuple | None = None) -> list[dict[str, Any]]:
         """Execute a query and return results as a list of dicts.
 
         Each dict maps column-name → value for one row.
@@ -90,17 +100,25 @@ class DatabaseDriver(ABC):
         ...
 
     @abstractmethod
-    def get_columns(
-        self, table: str, schema: str | None = None
-    ) -> list[ColumnInfo]:
+    def get_columns(self, table: str, schema: str | None = None) -> list[ColumnInfo]:
         """Return column metadata for *table*."""
         ...
 
     @abstractmethod
-    def get_indexes(
-        self, table: str, schema: str | None = None
-    ) -> list[IndexInfo]:
+    def get_indexes(self, table: str, schema: str | None = None) -> list[IndexInfo]:
         """Return index metadata for *table*."""
+        ...
+
+    @abstractmethod
+    def get_foreign_keys(
+        self, table: str, schema: str | None = None
+    ) -> list[ForeignKeyInfo]:
+        """Return foreign key constraints for *table*."""
+        ...
+
+    @abstractmethod
+    def get_ddl(self, table: str, schema: str | None = None) -> str:
+        """Return the CREATE TABLE DDL statement for *table*."""
         ...
 
     # ── Concrete helpers ─────────────────────────────────────
