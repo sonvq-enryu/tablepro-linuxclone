@@ -1,8 +1,7 @@
 """Sidebar widget — Database navigator with tree structure."""
 
-from PySide6.QtCore import Qt, Signal, QThreadPool, QObject
-
-from PySide6.QtGui import QAction
+from PySide6.QtCore import Qt, Signal, QThreadPool, QObject, QRect
+from PySide6.QtGui import QAction, QPainter, QColor, QFont, QPen, QBrush, QFontMetrics
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -15,6 +14,8 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QStyledItemDelegate,
+    QStyle,
 )
 
 from tablefree.db.driver import DatabaseDriver
@@ -29,14 +30,100 @@ class _SlotHelper(QObject):
     is used, safely marshaling the call back to the main thread.
     """
 
-    def __init__(self, callback, *args, **kwargs) -> None:
-        super().__init__()
+    def __init__(self, parent: QObject, callback, *args, **kwargs) -> None:
+        super().__init__(parent)
         self.callback = callback
         self.args = args
         self.kwargs = kwargs
 
     def on_finished(self, result: object) -> None:
-        self.callback(*self.args, result, **self.kwargs)
+        try:
+            self.callback(*self.args, result, **self.kwargs)
+        finally:
+            self.deleteLater()
+
+
+class SidebarDelegate(QStyledItemDelegate):
+    """Custom delegate to render tree items with right-aligned data-type badges."""
+
+    def paint(self, painter: QPainter, option, index) -> None:
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Highlight background for selected items
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, QColor("#1e293b"))  # slate-800
+            text_pen = QPen(QColor("#ffffff"))
+        else:
+            text_pen = QPen(QColor("#e2e8f0"))  # slate-200
+
+        data = index.data(Qt.ItemDataRole.UserRole)
+        rect = option.rect
+        font = option.font
+        
+        if data and isinstance(data, dict):
+            node_type = data.get("type")
+            
+            # Format text boldness
+            if node_type in ("schema", "table"):
+                font.setBold(True)
+                
+            painter.setFont(font)
+            
+            if node_type == "column":
+                col_name = data.get("column", "")
+                data_type = data.get("data_type", "unknown")
+                
+                # Draw badge for data type
+                badge_font = QFont(font)
+                badge_font.setPointSize(max(8, font.pointSize() - 2))
+                painter.setFont(badge_font)
+                
+                fm = QFontMetrics(badge_font)
+                badge_text_width = fm.horizontalAdvance(data_type)
+                badge_width = badge_text_width + 12
+                badge_height = fm.height() + 4
+                
+                # Draw badge background
+                badge_x = rect.right() - badge_width - 8
+                badge_y = rect.top() + (rect.height() - badge_height) // 2
+                badge_rect = QRect(badge_x, badge_y, badge_width, badge_height)
+                
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(QColor("#334155")))  # slate-700
+                painter.drawRoundedRect(badge_rect, 4, 4)
+                
+                # Draw badge text
+                painter.setPen(QPen(QColor("#93c5fd")))  # blue-300
+                painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, data_type)
+                
+                # Draw column name (restore font and pen for primary text)
+                painter.setFont(font)
+                painter.setPen(text_pen)
+                text_rect = QRect(rect.left() + 4, rect.top(), rect.width() - badge_width - 16, rect.height())
+                painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, col_name)
+                
+            else:
+                # Rendering for Schemas, Category Nodes, Tables, etc.
+                text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+                painter.setPen(text_pen)
+                text_rect = QRect(rect.left() + 4, rect.top(), rect.width() - 8, rect.height())
+                painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+        else:
+            # Fallback
+            text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+            painter.setFont(font)
+            painter.setPen(text_pen)
+            text_rect = QRect(rect.left() + 4, rect.top(), rect.width() - 8, rect.height())
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        # Give rows a comfortable padding to look like a modern dashboard
+        size.setHeight(28)
+        return size
 
 
 class Sidebar(QWidget):
@@ -126,6 +213,7 @@ class Sidebar(QWidget):
         self._tree = QTreeWidget()
         self._tree.setObjectName("schema-tree")
         self._tree.setHeaderHidden(True)
+        self._tree.setItemDelegate(SidebarDelegate(self._tree))
         self._tree.setIndentation(16)
         self._tree.setAnimated(True)
         self._tree.setRootIsDecorated(True)
@@ -243,11 +331,12 @@ class Sidebar(QWidget):
         
         # Use a helper QObject created in the main thread to ensure the 
         # callback runs in the main thread, avoiding cross-thread GUI crashes.
-        helper = _SlotHelper(self._on_tables_loaded, category_item, schema=schema)
-        worker._helper = helper  # Keep reference alive
+        # It is parented to `self` to prevent garbage collection and self-deletes.
+        helper = _SlotHelper(self, self._on_tables_loaded, category_item, schema=schema)
         worker.signals.finished.connect(helper.on_finished)
         
         worker.signals.error.connect(self._on_load_error)
+        worker.signals.error.connect(helper.deleteLater)
         self._thread_pool.start(worker)
 
     def _on_tables_loaded(
@@ -280,17 +369,17 @@ class Sidebar(QWidget):
 
         worker = QueryWorker(self._driver.get_columns, table, schema)
         
-        helper = _SlotHelper(self._on_columns_loaded, table_item)
-        worker._helper = helper  # Keep reference alive
+        helper = _SlotHelper(self, self._on_columns_loaded, table_item)
         worker.signals.finished.connect(helper.on_finished)
         
         worker.signals.error.connect(self._on_load_error)
+        worker.signals.error.connect(helper.deleteLater)
         self._thread_pool.start(worker)
 
     def _on_columns_loaded(self, table_item: QTreeWidgetItem, columns: list) -> None:
         for col in columns:
             col_item = QTreeWidgetItem(table_item)
-            col_item.setText(0, f"{col.name} ({col.data_type})")
+            col_item.setText(0, col.name)  # The item delegate uses this for searching but custom paints the UI
             col_item.setData(
                 0,
                 Qt.ItemDataRole.UserRole,
@@ -299,6 +388,7 @@ class Sidebar(QWidget):
                     "schema": table_item.data(0, Qt.ItemDataRole.UserRole)["schema"],
                     "table": table_item.data(0, Qt.ItemDataRole.UserRole)["table"],
                     "column": col.name,
+                    "data_type": col.data_type,
                 },
             )
             table_item.addChild(col_item)

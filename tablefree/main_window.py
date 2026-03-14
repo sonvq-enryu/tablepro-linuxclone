@@ -188,11 +188,12 @@ class MainWindow(QMainWindow):
 
         tb_layout.addWidget(_make_sep())
 
-        commit_btn = _make_btn("Commit")
-        tb_layout.addWidget(commit_btn)
+        self._commit_btn = _make_btn("Commit", "Commit changes (Ctrl+S)")
+        self._commit_btn.setShortcut("Ctrl+S")
+        tb_layout.addWidget(self._commit_btn)
 
-        rollback_btn = _make_btn("Rollback")
-        tb_layout.addWidget(rollback_btn)
+        self._rollback_btn = _make_btn("Rollback", "Discard changes")
+        tb_layout.addWidget(self._rollback_btn)
 
         tb_layout.addStretch()
 
@@ -212,6 +213,14 @@ class MainWindow(QMainWindow):
 
         self._result_view = ResultView()
         self._result_view.setMinimumHeight(100)
+
+        # Wire EditorPanel tab changes to ResultView change trackers
+        self._editor.tab_changed.connect(self._result_view.switch_tab)
+        self._result_view.switch_tab(self._editor.active_tab_id())
+
+        # Wire global toolbar buttons to ResultView actions
+        self._commit_btn.clicked.connect(self._result_view._on_commit)
+        self._rollback_btn.clicked.connect(self._result_view._on_discard)
 
         self._v_splitter = QSplitter(Qt.Orientation.Vertical)
         self._v_splitter.addWidget(self._editor)

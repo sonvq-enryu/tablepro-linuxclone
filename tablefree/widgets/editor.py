@@ -24,6 +24,7 @@ class EditorPanel(QWidget):
     _tab_counter: int = 1
 
     query_submitted = Signal(str)
+    tab_changed = Signal(int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -91,6 +92,7 @@ class EditorPanel(QWidget):
         self._tabs.setMovable(True)
         self._tabs.setDocumentMode(True)
         self._tabs.tabCloseRequested.connect(self._close_tab)
+        self._tabs.currentChanged.connect(self._on_tab_changed)
 
         add_tab_btn = QPushButton(" + ")
         add_tab_btn.setObjectName("add-tab-btn")
@@ -112,6 +114,7 @@ class EditorPanel(QWidget):
             "SELECT * FROM users LIMIT 100;"
         )
         editor.installEventFilter(self)
+        editor.setProperty("tab_id", self._tab_counter)
         self._tabs.addTab(editor, title)
         self._tabs.setCurrentWidget(editor)
 
@@ -122,6 +125,13 @@ class EditorPanel(QWidget):
     def _close_tab(self, index: int) -> None:
         if self._tabs.count() > 1:
             self._tabs.removeTab(index)
+
+    def _on_tab_changed(self, index: int) -> None:
+        widget = self._tabs.widget(index)
+        if widget:
+            tab_id = widget.property("tab_id")
+            if tab_id is not None:
+                self.tab_changed.emit(tab_id)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if isinstance(event, QKeyEvent):
@@ -234,3 +244,12 @@ class EditorPanel(QWidget):
         if editor is None:
             return ""
         return editor.toPlainText()
+
+    def active_tab_id(self) -> int:
+        widget = self._tabs.currentWidget()
+        if widget is not None:
+            tab_id = widget.property("tab_id")
+            if tab_id is not None:
+                return tab_id
+        return 0
+

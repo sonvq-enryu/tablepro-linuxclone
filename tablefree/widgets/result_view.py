@@ -57,14 +57,34 @@ class ResultView(QWidget):
         self._current_table: str = ""
         self._current_schema: str = ""
         self._primary_key_cols: list[str] = []
-        self._change_tracker = ChangeTracker()
-        self._original_row_data: dict[int, list[Any]] = {}
+        
+        self._active_tab_id: int | None = None
+        self._change_trackers: dict[int, ChangeTracker] = {}
+        self._original_row_data_per_tab: dict[int, dict[int, list[Any]]] = {}
+        
         self._original_query: str = ""
         self._filter_state_per_tab: dict[str, dict] = {}
         self._setup_ui()
         self._table.installEventFilter(self)
         self._table.cellChanged.connect(self._on_cell_changed)
         self._table.cellDoubleClicked.connect(self._on_cell_double_clicked)
+
+    @property
+    def _change_tracker(self) -> ChangeTracker:
+        """Get the active change tracker for the current tab."""
+        tab_id = self._active_tab_id if self._active_tab_id is not None else 0
+        return self._change_trackers.setdefault(tab_id, ChangeTracker())
+
+    @property
+    def _original_row_data(self) -> dict[int, list[Any]]:
+        """Get the active original row data for the current tab."""
+        tab_id = self._active_tab_id if self._active_tab_id is not None else 0
+        return self._original_row_data_per_tab.setdefault(tab_id, {})
+
+    def switch_tab(self, tab_id: int) -> None:
+        """Switch active change tracker when the editor tab changes."""
+        self._active_tab_id = tab_id
+        self._update_pending_label()
 
     def eventFilter(self, obj, event):
         if obj == self._table and event.type() == event.Type.KeyPress:
@@ -791,13 +811,17 @@ class ResultView(QWidget):
         else:
             page_rows = rows
 
-        self._table.setRowCount(len(page_rows))
-
-        for row_idx, row in enumerate(page_rows):
-            for col_idx, value in enumerate(row):
-                self._set_cell_item(
-                    row_idx, col_idx, value, self._current_result.column_types[col_idx]
-                )
+        self._table.blockSignals(True)
+        try:
+            self._table.setRowCount(len(page_rows))
+    
+            for row_idx, row in enumerate(page_rows):
+                for col_idx, value in enumerate(row):
+                    self._set_cell_item(
+                        row_idx, col_idx, value, self._current_result.column_types[col_idx]
+                    )
+        finally:
+            self._table.blockSignals(False)
 
         self._update_pagination_controls()
         self._update_header_sort_indicator()
@@ -810,14 +834,17 @@ class ResultView(QWidget):
             font.setItalic(True)
             item.setFont(font)
             item.setData(self.NULL_ROLE, True)
+            item.setData(self.ORIGINAL_VALUE_ROLE, None)
         else:
             display_value = self._format_cell_value(value, col_type)
             item = QTableWidgetItem(str(display_value))
             item.setData(self.NULL_ROLE, False)
+            item.setData(self.ORIGINAL_VALUE_ROLE, value)
 
         alignment = self._get_alignment_for_type(col_type)
         item.setTextAlignment(alignment)
 
+        self._change_tracker.set_original_value(row, col, value)
         self._table.setItem(row, col, item)
 
     def _format_cell_value(self, value: Any, col_type: str) -> str:
@@ -1001,7 +1028,8 @@ class ResultView(QWidget):
         self._sort_order = None
 
         # Clear change tracker
-        self._change_tracker = ChangeTracker()
+        tab_id = self._active_tab_id if self._active_tab_id is not None else 0
+        self._change_trackers[tab_id] = ChangeTracker()
         self._original_row_data.clear()
 
         self._table.setColumnCount(len(result.columns))
