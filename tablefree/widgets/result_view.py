@@ -927,13 +927,19 @@ class ResultView(QWidget):
             if header_item is None:
                 header_item = QTableWidgetItem()
                 self._table.setHorizontalHeaderItem(i, header_item)
+
+            col_type = ""
+            if i < len(self._current_result.column_types):
+                col_type = self._current_result.column_types[i]
+
             if i == self._sort_column and self._sort_order is not None:
                 indicator = (
                     " ▲" if self._sort_order == Qt.SortOrder.AscendingOrder else " ▼"
                 )
-                header_item.setText(col_name + indicator)
+                header_text = f"{col_name}{indicator}\n{col_type}"
             else:
-                header_item.setText(col_name)
+                header_text = f"{col_name}\n{col_type}"
+            header_item.setText(header_text)
 
     def _update_pagination_controls(self) -> None:
         total_pages = self._total_pages
@@ -999,7 +1005,13 @@ class ResultView(QWidget):
         self._original_row_data.clear()
 
         self._table.setColumnCount(len(result.columns))
-        self._table.setHorizontalHeaderLabels(result.columns)
+        header_labels = []
+        for i, col_name in enumerate(result.columns):
+            col_type = result.column_types[i] if i < len(result.column_types) else ""
+            header_labels.append(f"{col_name}\n{col_type}")
+        self._table.setHorizontalHeaderLabels(header_labels)
+        self._table.verticalHeader().setDefaultSectionSize(28)
+        self._table.horizontalHeader().setDefaultSectionSize(150)
         self._table.setRowCount(0)
 
         self._display_page(0)

@@ -1,17 +1,16 @@
-"""Sidebar widget — Schema browser with search and tree structure."""
+"""Sidebar widget — Database navigator with tree structure."""
 
 from PySide6.QtCore import Qt, Signal, QThreadPool
 
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QAbstractItemView,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
     QPushButton,
-    QSizePolicy,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -21,13 +20,9 @@ from PySide6.QtWidgets import (
 from tablefree.db.driver import DatabaseDriver
 from tablefree.workers.query_worker import QueryWorker
 
-_ICON_SCHEMA = "📁"
-_ICON_TABLE = "🗃"
-_ICON_COLUMN = "◉"
-
 
 class Sidebar(QWidget):
-    """Left panel: schema tree browser with search filter."""
+    """Left panel: database navigator with connection dropdown and schema tree."""
 
     table_selected = Signal(str, str)
     table_double_clicked = Signal(str, str)
@@ -44,38 +39,59 @@ class Sidebar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        # ── Header
         header = QWidget()
         header.setObjectName("sidebar-header")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(12, 10, 12, 10)
+        header_layout.setContentsMargins(12, 8, 8, 8)
 
-        title = QLabel("Schema Browser")
+        title = QLabel("Database Navigator")
         title.setObjectName("sidebar-title")
         header_layout.addWidget(title)
         header_layout.addStretch()
 
-        self._badge = QLabel("● Disconnected")
-        self._badge.setObjectName("connection-badge-inactive")
-        header_layout.addWidget(self._badge)
+        self._menu_btn = QPushButton(":")
+        self._menu_btn.setObjectName("sidebar-refresh")
+        self._menu_btn.setToolTip("Options")
+        self._menu_btn.setFixedSize(24, 24)
+        self._menu_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        header_layout.addWidget(self._menu_btn)
 
-        self._refresh_btn = QPushButton("⟳")
+        self._refresh_btn = QPushButton("-")
         self._refresh_btn.setObjectName("sidebar-refresh")
         self._refresh_btn.setToolTip("Refresh schema")
         self._refresh_btn.setFixedSize(24, 24)
+        self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._refresh_btn.setVisible(False)
         self._refresh_btn.clicked.connect(self._on_refresh_clicked)
         header_layout.addWidget(self._refresh_btn)
 
         layout.addWidget(header)
 
+        # ── Connection Dropdown
+        conn_container = QWidget()
+        conn_container.setObjectName("search-container")
+        conn_layout = QVBoxLayout(conn_container)
+        conn_layout.setContentsMargins(8, 4, 8, 4)
+        conn_layout.setSpacing(4)
+
+        self._conn_combo = QComboBox()
+        self._conn_combo.setObjectName("connection-combo")
+        self._conn_combo.addItem("No connection")
+        self._conn_combo.setEnabled(False)
+        conn_layout.addWidget(self._conn_combo)
+
+        layout.addWidget(conn_container)
+
+        # ── Search
         search_container = QWidget()
         search_container.setObjectName("search-container")
         search_layout = QVBoxLayout(search_container)
-        search_layout.setContentsMargins(8, 6, 8, 6)
+        search_layout.setContentsMargins(8, 4, 8, 6)
 
         self._search = QLineEdit()
         self._search.setObjectName("sidebar-search")
-        self._search.setPlaceholderText("🔍  Filter objects…")
+        self._search.setPlaceholderText("Filter tables...")
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self._on_search_changed)
         search_layout.addWidget(self._search)
@@ -88,6 +104,7 @@ class Sidebar(QWidget):
         sep.setFixedHeight(1)
         layout.addWidget(sep)
 
+        # ── Tree
         self._tree = QTreeWidget()
         self._tree.setObjectName("schema-tree")
         self._tree.setHeaderHidden(True)
@@ -102,6 +119,7 @@ class Sidebar(QWidget):
 
         layout.addWidget(self._tree, stretch=1)
 
+        # ── Footer
         self._footer = QLabel("Connect to a database to browse schema")
         self._footer.setObjectName("sidebar-footer")
         self._footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -120,11 +138,15 @@ class Sidebar(QWidget):
 
         self._tree.clear()
 
-        self._tree.clear()
-        self._badge.setText("● Connected")
-        self._badge.setObjectName("connection-badge-active")
-        self._badge.style().unpolish(self._badge)
-        self._badge.style().polish(self._badge)
+        # Update connection dropdown
+        conn_name = driver.config.name or "Unnamed"
+        driver_type = type(driver).__name__.replace("Driver", "")
+        display_name = f"{conn_name} ({driver_type})"
+
+        self._conn_combo.clear()
+        self._conn_combo.addItem(display_name)
+        self._conn_combo.setEnabled(True)
+
         self._refresh_btn.setVisible(True)
         self._footer.setVisible(False)
 
@@ -141,48 +163,92 @@ class Sidebar(QWidget):
 
     def _on_schemas_loaded(self, schemas: list[str]) -> None:
         for schema in schemas:
-            schema_item = QTreeWidgetItem(self._tree, [f"{_ICON_SCHEMA}  {schema}"])
+            # Create category nodes under each schema
+            schema_item = QTreeWidgetItem(self._tree)
+            schema_item.setText(0, f"{schema}")
             schema_item.setData(
                 0, Qt.ItemDataRole.UserRole, {"type": "schema", "schema": schema}
             )
-            schema_item.setChildIndicatorPolicy(
+
+            # Add category nodes
+            tables_node = QTreeWidgetItem(schema_item)
+            tables_node.setText(0, "Tables")
+            tables_node.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                {"type": "category", "category": "tables", "schema": schema},
+            )
+            tables_node.setChildIndicatorPolicy(
                 QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
             )
+
+            views_node = QTreeWidgetItem(schema_item)
+            views_node.setText(0, "Views")
+            views_node.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                {"type": "category", "category": "views", "schema": schema},
+            )
+
+            functions_node = QTreeWidgetItem(schema_item)
+            functions_node.setText(0, "Functions")
+            functions_node.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                {"type": "category", "category": "functions", "schema": schema},
+            )
+
+            procedures_node = QTreeWidgetItem(schema_item)
+            procedures_node.setText(0, "Stored Procedures")
+            procedures_node.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                {"type": "category", "category": "procedures", "schema": schema},
+            )
+
+            schema_item.addChild(tables_node)
+            schema_item.addChild(views_node)
+            schema_item.addChild(functions_node)
+            schema_item.addChild(procedures_node)
+
             self._tree.addTopLevelItem(schema_item)
+            schema_item.setExpanded(True)
 
-    def _load_tables_for_schema(self, schema_item: QTreeWidgetItem) -> None:
-        schema_data = schema_item.data(0, Qt.ItemDataRole.UserRole)
-        schema = schema_data["schema"]
+    def _load_tables_for_category(self, category_item: QTreeWidgetItem) -> None:
+        data = category_item.data(0, Qt.ItemDataRole.UserRole)
+        schema = data["schema"]
 
-        while schema_item.childCount() > 0:
-            schema_item.removeChild(schema_item.child(0))
+        while category_item.childCount() > 0:
+            category_item.removeChild(category_item.child(0))
 
         worker = QueryWorker(self._driver.get_tables, schema)
         worker.signals.finished.connect(
-            lambda tables, item=schema_item: self._on_tables_loaded(item, tables)
+            lambda tables, item=category_item, s=schema: self._on_tables_loaded(
+                item, tables, s
+            )
         )
         worker.signals.error.connect(self._on_load_error)
         self._thread_pool.start(worker)
 
     def _on_tables_loaded(
-        self, schema_item: QTreeWidgetItem, tables: list[str]
+        self, category_item: QTreeWidgetItem, tables: list[str], schema: str
     ) -> None:
         for table in tables:
-            table_item = QTreeWidgetItem(schema_item, [f"{_ICON_TABLE}  {table}"])
+            table_item = QTreeWidgetItem(category_item)
+            table_item.setText(0, f"{schema}.{table}")
             table_item.setData(
                 0,
                 Qt.ItemDataRole.UserRole,
-                {
-                    "type": "table",
-                    "schema": schema_item.data(0, Qt.ItemDataRole.UserRole)["schema"],
-                    "table": table,
-                },
+                {"type": "table", "schema": schema, "table": table},
             )
             table_item.setChildIndicatorPolicy(
                 QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
             )
-            schema_item.addChild(table_item)
-        schema_item.setExpanded(True)
+            category_item.addChild(table_item)
+
+        # Update category label with count
+        category_item.setText(0, f"Tables ({len(tables)})")
+        category_item.setExpanded(True)
 
     def _load_columns_for_table(self, table_item: QTreeWidgetItem) -> None:
         table_data = table_item.data(0, Qt.ItemDataRole.UserRole)
@@ -201,9 +267,8 @@ class Sidebar(QWidget):
 
     def _on_columns_loaded(self, table_item: QTreeWidgetItem, columns: list) -> None:
         for col in columns:
-            col_item = QTreeWidgetItem(
-                table_item, [f"{_ICON_COLUMN}  {col.name} ({col.data_type})"]
-            )
+            col_item = QTreeWidgetItem(table_item)
+            col_item.setText(0, f"{col.name} ({col.data_type})")
             col_item.setData(
                 0,
                 Qt.ItemDataRole.UserRole,
@@ -222,8 +287,12 @@ class Sidebar(QWidget):
         if not data:
             return
 
-        if data["type"] == "schema" and item.childCount() == 0:
-            self._load_tables_for_schema(item)
+        if (
+            data["type"] == "category"
+            and data["category"] == "tables"
+            and item.childCount() == 0
+        ):
+            self._load_tables_for_category(item)
         elif data["type"] == "table" and item.childCount() == 0:
             self._load_columns_for_table(item)
 
@@ -234,10 +303,9 @@ class Sidebar(QWidget):
         """Reset the sidebar to disconnected state."""
         self._driver = None
         self._tree.clear()
-        self._badge.setText("● Disconnected")
-        self._badge.setObjectName("connection-badge-inactive")
-        self._badge.style().unpolish(self._badge)
-        self._badge.style().polish(self._badge)
+        self._conn_combo.clear()
+        self._conn_combo.addItem("No connection")
+        self._conn_combo.setEnabled(False)
         self._refresh_btn.setVisible(False)
         self._footer.setVisible(True)
 
@@ -309,12 +377,20 @@ class Sidebar(QWidget):
     def _refresh_schema(self, schema: str) -> None:
         for i in range(self._tree.topLevelItemCount()):
             schema_item = self._tree.topLevelItem(i)
-            if (
-                schema_item
-                and schema_item.data(0, Qt.ItemDataRole.UserRole)["schema"] == schema
-            ):
-                self._load_tables_for_schema(schema_item)
-                return
+            if schema_item:
+                item_data = schema_item.data(0, Qt.ItemDataRole.UserRole)
+                if item_data and item_data.get("schema") == schema:
+                    # Find the Tables category and reload
+                    for j in range(schema_item.childCount()):
+                        child = schema_item.child(j)
+                        child_data = child.data(0, Qt.ItemDataRole.UserRole)
+                        if (
+                            child_data
+                            and child_data.get("type") == "category"
+                            and child_data.get("category") == "tables"
+                        ):
+                            self._load_tables_for_category(child)
+                            return
 
     def _on_refresh_clicked(self) -> None:
         if self._driver:

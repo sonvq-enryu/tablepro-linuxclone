@@ -6,11 +6,14 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QPushButton,
     QSplitter,
     QStatusBar,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -37,6 +40,7 @@ class MainWindow(QMainWindow):
         self._current_query = ""
         self._setup_window()
         self._setup_menu_bar()
+        self._setup_toolbar()
         self._setup_layout()
         self._setup_status_bar()
         self._apply_theme()
@@ -142,6 +146,59 @@ class MainWindow(QMainWindow):
         about_action.setStatusTip("About this application")
         help_menu.addAction(about_action)
 
+    # ── Toolbar ────────────────────────────────────────────────
+
+    def _setup_toolbar(self) -> None:
+        self._toolbar_widget = QWidget()
+        self._toolbar_widget.setObjectName("main-toolbar")
+        tb_layout = QHBoxLayout(self._toolbar_widget)
+        tb_layout.setContentsMargins(8, 4, 8, 4)
+        tb_layout.setSpacing(4)
+
+        def _make_btn(text: str, tooltip: str = "") -> QPushButton:
+            btn = QPushButton(text)
+            btn.setObjectName("main-toolbar-btn")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            if tooltip:
+                btn.setToolTip(tooltip)
+            return btn
+
+        def _make_sep() -> QFrame:
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.VLine)
+            sep.setObjectName("main-toolbar-separator")
+            sep.setFixedHeight(20)
+            return sep
+
+        new_conn_btn = _make_btn("+ New Connection", "Open connection dialog (Ctrl+Shift+N)")
+        new_conn_btn.clicked.connect(self._open_connection_dialog)
+        tb_layout.addWidget(new_conn_btn)
+
+        new_query_btn = _make_btn("New Query", "New query tab (Ctrl+N)")
+        new_query_btn.clicked.connect(self._on_new_query_tab)
+        tb_layout.addWidget(new_query_btn)
+
+        tb_layout.addWidget(_make_sep())
+
+        import_btn = _make_btn("Import")
+        tb_layout.addWidget(import_btn)
+
+        export_btn = _make_btn("Export")
+        tb_layout.addWidget(export_btn)
+
+        tb_layout.addWidget(_make_sep())
+
+        commit_btn = _make_btn("Commit")
+        tb_layout.addWidget(commit_btn)
+
+        rollback_btn = _make_btn("Rollback")
+        tb_layout.addWidget(rollback_btn)
+
+        tb_layout.addStretch()
+
+    def _on_new_query_tab(self) -> None:
+        self._editor._new_tab()
+
     # ── Layout ───────────────────────────────────────────────
 
     def _setup_layout(self) -> None:
@@ -168,7 +225,13 @@ class MainWindow(QMainWindow):
         self._h_splitter.setSizes([260, 940])
         self._h_splitter.setChildrenCollapsible(False)
 
-        self.setCentralWidget(self._h_splitter)
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(self._toolbar_widget)
+        central_layout.addWidget(self._h_splitter, stretch=1)
+        self.setCentralWidget(central)
 
     # ── Status Bar ───────────────────────────────────────────
 

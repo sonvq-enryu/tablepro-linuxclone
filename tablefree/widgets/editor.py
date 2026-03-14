@@ -43,38 +43,39 @@ class EditorPanel(QWidget):
         tb_layout.setContentsMargins(8, 4, 8, 4)
         tb_layout.setSpacing(6)
 
-        self._run_btn = QPushButton("▶ Run")
-        self._run_btn.setObjectName("toolbar-btn-primary")
-        self._run_btn.setToolTip("Execute query (Ctrl+Enter)")
-        self._run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._run_btn.clicked.connect(self._on_run)
-        tb_layout.addWidget(self._run_btn)
-
-        self._run_sel_btn = QPushButton("▶▶ Run Selection")
-        self._run_sel_btn.setObjectName("toolbar-btn")
-        self._run_sel_btn.setToolTip("Execute selected text (Ctrl+Shift+Enter)")
-        self._run_sel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._run_sel_btn.clicked.connect(self._on_run_selection)
-        tb_layout.addWidget(self._run_sel_btn)
-
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.VLine)
-        sep.setObjectName("toolbar-separator")
-        sep.setFixedHeight(20)
-        tb_layout.addWidget(sep)
-
-        self._fmt_btn = QPushButton("☰ Format")
+        self._fmt_btn = QPushButton("Format")
         self._fmt_btn.setObjectName("toolbar-btn")
         self._fmt_btn.setToolTip("Beautify SQL")
         self._fmt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._fmt_btn.clicked.connect(self._on_format)
         tb_layout.addWidget(self._fmt_btn)
 
+        self._run_sel_btn = QPushButton("Run Selection")
+        self._run_sel_btn.setObjectName("toolbar-btn")
+        self._run_sel_btn.setToolTip("Execute selected text (Ctrl+Shift+Enter)")
+        self._run_sel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._run_sel_btn.clicked.connect(self._on_run_selection)
+        tb_layout.addWidget(self._run_sel_btn)
+
         tb_layout.addStretch()
 
         self._info_label = QLabel("")
         self._info_label.setObjectName("editor-info")
         tb_layout.addWidget(self._info_label)
+
+        self._run_btn = QPushButton("Run")
+        self._run_btn.setObjectName("toolbar-btn-primary")
+        self._run_btn.setToolTip("Execute query (Ctrl+Enter)")
+        self._run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._run_btn.clicked.connect(self._on_run)
+        tb_layout.addWidget(self._run_btn)
+
+        self._explain_btn = QPushButton("Explain")
+        self._explain_btn.setObjectName("toolbar-btn-explain")
+        self._explain_btn.setToolTip("Show query execution plan")
+        self._explain_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._explain_btn.clicked.connect(self._on_explain)
+        tb_layout.addWidget(self._explain_btn)
 
         layout.addWidget(toolbar)
 
@@ -99,7 +100,7 @@ class EditorPanel(QWidget):
         add_tab_btn.clicked.connect(self._new_tab)
         self._tabs.setCornerWidget(add_tab_btn, Qt.Corner.TopRightCorner)
 
-        self._add_tab("Query 1")
+        self._add_tab("[Query 1]")
         layout.addWidget(self._tabs, stretch=1)
 
     def _add_tab(self, title: str) -> None:
@@ -116,7 +117,7 @@ class EditorPanel(QWidget):
 
     def _new_tab(self) -> None:
         self._tab_counter += 1
-        self._add_tab(f"Query {self._tab_counter}")
+        self._add_tab(f"[Query {self._tab_counter}]")
 
     def _close_tab(self, index: int) -> None:
         if self._tabs.count() > 1:
@@ -168,6 +169,12 @@ class EditorPanel(QWidget):
             self._set_running_state(True)
             self.query_submitted.emit(sql)
 
+    def _on_explain(self) -> None:
+        sql = self.current_sql()
+        if sql.strip():
+            self._set_running_state(True)
+            self.query_submitted.emit(f"EXPLAIN {sql}")
+
     def _on_format(self) -> None:
         editor = self.current_editor()
         if editor is None:
@@ -214,6 +221,7 @@ class EditorPanel(QWidget):
         self._run_btn.setEnabled(not running)
         self._run_sel_btn.setEnabled(not running)
         self._fmt_btn.setEnabled(not running)
+        self._explain_btn.setEnabled(not running)
 
     def current_editor(self) -> CodeEditor | None:
         widget = self._tabs.currentWidget()

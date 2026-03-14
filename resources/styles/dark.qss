@@ -117,6 +117,39 @@ QSplitter::handle:pressed {
 }
 
 /* ====================================================
+   MAIN TOOLBAR
+   ==================================================== */
+
+QWidget#main-toolbar {
+    background-color: #181825;
+    border-bottom: 1px solid #313244;
+}
+
+QPushButton#main-toolbar-btn {
+    background-color: transparent;
+    color: #a6adc8;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+QPushButton#main-toolbar-btn:hover {
+    background-color: #313244;
+    color: #cdd6f4;
+}
+
+QPushButton#main-toolbar-btn:pressed {
+    background-color: #45475a;
+}
+
+QFrame#main-toolbar-separator {
+    background-color: #313244;
+    border: none;
+    max-width: 1px;
+}
+
+/* ====================================================
    SIDEBAR
    ==================================================== */
 
@@ -142,6 +175,47 @@ QLabel#connection-badge-inactive {
     color: #f38ba8;
     font-size: 11px;
     background: transparent;
+}
+
+/* Connection Dropdown */
+QComboBox#connection-combo {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+QComboBox#connection-combo:hover {
+    border-color: #45475a;
+}
+
+QComboBox#connection-combo::drop-down {
+    border: none;
+    width: 20px;
+}
+
+QComboBox#connection-combo::down-arrow {
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 3px solid #a6adc8;
+    margin-right: 6px;
+}
+
+/* Sidebar Refresh Button */
+QPushButton#sidebar-refresh {
+    background-color: transparent;
+    color: #6c7086;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+QPushButton#sidebar-refresh:hover {
+    background-color: #313244;
+    color: #cdd6f4;
 }
 
 /* Search */
@@ -276,6 +350,22 @@ QPushButton#toolbar-btn:disabled {
     color: #45475a;
 }
 
+/* Explain Button */
+QPushButton#toolbar-btn-explain {
+    background-color: transparent;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+}
+
+QPushButton#toolbar-btn-explain:hover {
+    background-color: #313244;
+    color: #cdd6f4;
+    border-color: #45475a;
+}
+
 QFrame#toolbar-separator {
     background-color: #313244;
     border: none;
@@ -348,6 +438,63 @@ QPlainTextEdit#sql-editor {
     selection-background-color: rgba(203, 166, 247, 0.2);
     selection-color: #cdd6f4;
     line-height: 1.6;
+}
+
+/* ====================================================
+   EDIT TOOLBAR
+   ==================================================== */
+
+QWidget#edit-toolbar {
+    background-color: #181825;
+    border-bottom: 1px solid #313244;
+}
+
+QPushButton#edit-btn {
+    background-color: transparent;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+}
+
+QPushButton#edit-btn:hover {
+    background-color: #313244;
+    color: #cdd6f4;
+}
+
+QPushButton#commit-btn {
+    background-color: #22c55e;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QPushButton#commit-btn:hover {
+    background-color: #16a34a;
+}
+
+QLabel#pending-label {
+    color: #6c7086;
+    font-size: 11px;
+    background: transparent;
+}
+
+QPushButton#filter-toggle-btn {
+    background-color: transparent;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+}
+
+QPushButton#filter-toggle-btn:hover {
+    background-color: #313244;
+    color: #cdd6f4;
 }
 
 /* ====================================================
@@ -669,6 +816,51 @@ QComboBox#driver-select::down-arrow {
     margin-right: 8px;
 }
 
+/* Driver Selection Cards */
+QPushButton#driver-card {
+    background-color: #252738;
+    color: #a6adc8;
+    border: 2px solid #313244;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 90px;
+    min-height: 60px;
+}
+
+QPushButton#driver-card:hover {
+    background-color: #2d2f42;
+    border-color: #45475a;
+    color: #cdd6f4;
+}
+
+QPushButton#driver-card-selected {
+    background-color: #252738;
+    color: #cdd6f4;
+    border: 2px solid #89b4fa;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 90px;
+    min-height: 60px;
+}
+
+/* Saved Connections Combo */
+QComboBox#saved-connections-combo {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+QComboBox#saved-connections-combo:hover {
+    border-color: #45475a;
+}
+
 /* Connection Name Input */
 QLineEdit#connection-name-input {
     background-color: #181825;
@@ -963,12 +1155,85 @@ QDialog QPushButton:pressed {
     background-color: #45475a;
 }
 
+QPushButton#dialog-action-btn-primary {
+    background-color: #22c55e;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
 QPushButton#dialog-action-btn-primary:hover {
     background-color: #16a34a;
 }
 
 QPushButton#dialog-action-btn-primary:pressed {
     background-color: #15803d;
+}
+
+/* Connection Dialog Title */
+QLabel#connection-dialog-title {
+    color: #cdd6f4;
+    font-size: 18px;
+    font-weight: 700;
+    background: transparent;
+}
+
+/* Form Labels */
+QLabel#form-label {
+    color: #6c7086;
+    font-size: 11px;
+    font-weight: 500;
+    background: transparent;
+}
+
+/* Password Toggle */
+QPushButton#password-toggle-btn {
+    background-color: #313244;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+QPushButton#password-toggle-btn:hover {
+    background-color: #45475a;
+    color: #cdd6f4;
+}
+
+/* Cancel Button */
+QPushButton#dialog-action-btn-cancel {
+    background-color: transparent;
+    color: #6c7086;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+QPushButton#dialog-action-btn-cancel:hover {
+    background-color: #313244;
+    color: #cdd6f4;
+}
+
+/* Connection New/Delete Buttons */
+QPushButton#connection-new-btn,
+QPushButton#connection-delete-btn {
+    background-color: transparent;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+QPushButton#connection-new-btn:hover,
+QPushButton#connection-delete-btn:hover {
+    background-color: #313244;
+    color: #cdd6f4;
 }
 
 QLabel#conn-status-label {
