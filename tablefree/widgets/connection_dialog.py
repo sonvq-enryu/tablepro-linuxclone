@@ -532,15 +532,11 @@ class ConnectionDialog(QDialog):
         worker = QueryWorker(self._test_driver.test_connection)
         self._test_worker = worker
 
-        worker.signals.finished.connect(
-            lambda res, d=self._test_driver: self._on_test_finished(res, d)
-        )
-        worker.signals.error.connect(
-            lambda err, d=self._test_driver: self._on_test_error(err, d)
-        )
+        worker.signals.finished.connect(self._on_test_finished)
+        worker.signals.error.connect(self._on_test_error)
         self._thread_pool.start(worker)
 
-    def _on_test_finished(self, success: bool, driver: DatabaseDriver) -> None:
+    def _on_test_finished(self, success: bool) -> None:
         self._set_ui_disabled(False)
         if success:
             self._set_status("Connection successful!", "success")
@@ -549,7 +545,7 @@ class ConnectionDialog(QDialog):
         self._test_driver = None
         self._test_worker = None
 
-    def _on_test_error(self, error: Exception, driver: DatabaseDriver) -> None:
+    def _on_test_error(self, error: Exception) -> None:
         self._set_ui_disabled(False)
         self._set_status(f"Error: {error}", "error")
         self._test_driver = None

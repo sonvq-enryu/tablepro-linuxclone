@@ -1,6 +1,6 @@
 """Sidebar widget — Database navigator with tree structure."""
 
-from PySide6.QtCore import Qt, Signal, QThreadPool
+from PySide6.QtCore import Qt, Signal, QThreadPool, QObject
 
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
@@ -19,6 +19,24 @@ from PySide6.QtWidgets import (
 
 from tablefree.db.driver import DatabaseDriver
 from tablefree.workers.query_worker import QueryWorker
+
+
+class _SlotHelper(QObject):
+    """Helper to cleanly pass context arguments to a slot on the main thread.
+
+    Lambdas without a QObject context execute in the emitting thread (background),
+    which crashes when updating the GUI. This helper ensures a QueuedConnection
+    is used, safely marshaling the call back to the main thread.
+    """
+
+    def __init__(self, callback, *args, **kwargs) -> None:
+        super().__init__()
+        self.callback = callback
+        self.args = args
+        self.kwargs = kwargs
+
+    def on_finished(self, result: object) -> None:
+        self.callback(*self.args, result, **self.kwargs)
 
 
 class Sidebar(QWidget):
@@ -222,11 +240,13 @@ class Sidebar(QWidget):
             category_item.removeChild(category_item.child(0))
 
         worker = QueryWorker(self._driver.get_tables, schema)
-        worker.signals.finished.connect(
-            lambda tables, item=category_item, s=schema: self._on_tables_loaded(
-                item, tables, s
-            )
-        )
+        
+        # Use a helper QObject created in the main thread to ensure the 
+        # callback runs in the main thread, avoiding cross-thread GUI crashes.
+        helper = _SlotHelper(self._on_tables_loaded, category_item, schema=schema)
+        worker._helper = helper  # Keep reference alive
+        worker.signals.finished.connect(helper.on_finished)
+        
         worker.signals.error.connect(self._on_load_error)
         self._thread_pool.start(worker)
 
@@ -259,9 +279,11 @@ class Sidebar(QWidget):
             table_item.removeChild(table_item.child(0))
 
         worker = QueryWorker(self._driver.get_columns, table, schema)
-        worker.signals.finished.connect(
-            lambda cols, item=table_item: self._on_columns_loaded(item, cols)
-        )
+        
+        helper = _SlotHelper(self._on_columns_loaded, table_item)
+        worker._helper = helper  # Keep reference alive
+        worker.signals.finished.connect(helper.on_finished)
+        
         worker.signals.error.connect(self._on_load_error)
         self._thread_pool.start(worker)
 
