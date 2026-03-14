@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         self._is_dark = True  # start with dark theme
         self._conn_manager = ConnectionManager()
         self._active_driver = None
+        self._current_query = ""
         self._setup_window()
         self._setup_menu_bar()
         self._setup_layout()
@@ -90,10 +91,12 @@ class MainWindow(QMainWindow):
         edit_menu = menu_bar.addMenu("&Edit")
         undo = QAction("Undo", self)
         undo.setShortcut("Ctrl+Z")
+        undo.triggered.connect(self._on_undo)
         edit_menu.addAction(undo)
 
         redo = QAction("Redo", self)
         redo.setShortcut("Ctrl+Shift+Z")
+        redo.triggered.connect(self._on_redo)
         edit_menu.addAction(redo)
 
         edit_menu.addSeparator()
@@ -221,6 +224,16 @@ class MainWindow(QMainWindow):
                 self._conn_indicator.style().polish(self._conn_indicator)
                 self._sidebar.set_driver(self._active_driver)
                 self._editor.set_driver(self._active_driver)
+                self._result_view.set_driver(self._active_driver)
+
+    def _on_undo(self) -> None:
+        """Handle undo in result view."""
+        # Focus on result view to handle undo there
+        self._result_view.setFocus()
+
+    def _on_redo(self) -> None:
+        """Handle redo in result view."""
+        self._result_view.setFocus()
 
     def _execute_query(self, sql: str) -> None:
         if not self._active_driver:
@@ -230,6 +243,7 @@ class MainWindow(QMainWindow):
             self._editor.set_query_complete()
             return
 
+        self._current_query = sql  # Store for result view
         self._editor._info_label.setText("Executing...")
         self._query_start_time = time.perf_counter()
 
@@ -276,6 +290,7 @@ class MainWindow(QMainWindow):
                     column_types=col_types,
                     row_count=len(data),
                     duration_ms=duration_ms,
+                    query=self._current_query,
                 )
                 self._result_view.display_results(query_result)
             else:

@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from PySide6.QtCore import Qt, QThreadPool, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -391,7 +392,7 @@ class ConnectionDialog(QDialog):
         item.setData(Qt.ItemDataRole.UserRole, profile)
 
         # Set color based on database type
-        color = self._get_driver_color(dtype)
+        color = QColor(self._get_driver_color(dtype))
         item.setForeground(color)
 
         self._conn_list.addItem(item)

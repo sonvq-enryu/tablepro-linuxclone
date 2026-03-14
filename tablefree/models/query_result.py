@@ -10,3 +10,4 @@ class QueryResult:
     duration_ms: float
     error: str | None = None
     affected_rows: int = 0
+    query: str = ""
