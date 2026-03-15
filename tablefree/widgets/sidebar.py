@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QStyle,
 )
 
+from tablefree.db.connection_store import ConnectionStore
 from tablefree.db.driver import DatabaseDriver
 from tablefree.theme import current
 from tablefree.workers.query_worker import QueryWorker
@@ -134,12 +135,16 @@ class Sidebar(QWidget):
     table_selected = Signal(str, str)
     table_double_clicked = Signal(str, str)
     structure_requested = Signal(str, str)
+    connection_requested = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._driver: DatabaseDriver | None = None
         self._thread_pool: QThreadPool | None = None
+        self._store = ConnectionStore()
+        self._combo_updating = False
         self._setup_ui()
+        self._refresh_connection_combo()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -184,8 +189,7 @@ class Sidebar(QWidget):
 
         self._conn_combo = QComboBox()
         self._conn_combo.setObjectName("connection-combo")
-        self._conn_combo.addItem("No connection")
-        self._conn_combo.setEnabled(False)
+        self._conn_combo.currentIndexChanged.connect(self._on_connection_combo_changed)
         conn_layout.addWidget(self._conn_combo)
 
         layout.addWidget(conn_container)
@@ -251,9 +255,7 @@ class Sidebar(QWidget):
         driver_type = type(driver).__name__.replace("Driver", "")
         display_name = f"{conn_name} ({driver_type})"
 
-        self._conn_combo.clear()
-        self._conn_combo.addItem(display_name)
-        self._conn_combo.setEnabled(True)
+        self._refresh_connection_combo(active_label=display_name)
 
         self._refresh_btn.setVisible(True)
         self._footer.setVisible(False)
@@ -417,11 +419,54 @@ class Sidebar(QWidget):
         """Reset the sidebar to disconnected state."""
         self._driver = None
         self._tree.clear()
-        self._conn_combo.clear()
-        self._conn_combo.addItem("No connection")
-        self._conn_combo.setEnabled(False)
+        self._refresh_connection_combo()
         self._refresh_btn.setVisible(False)
         self._footer.setVisible(True)
+
+    def refresh_connections(self) -> None:
+        """Refresh quick-connect dropdown from saved profiles."""
+        active_label = None
+        if self._driver:
+            conn_name = self._driver.config.name or "Unnamed"
+            driver_type = type(self._driver).__name__.replace("Driver", "")
+            active_label = f"{conn_name} ({driver_type})"
+        self._refresh_connection_combo(active_label=active_label)
+
+    def _refresh_connection_combo(self, active_label: str | None = None) -> None:
+        profiles = self._store.load_all()
+        self._combo_updating = True
+        self._conn_combo.clear()
+
+        if active_label:
+            self._conn_combo.addItem(f"Connected: {active_label}", None)
+        else:
+            self._conn_combo.addItem("Quick connect...", None)
+
+        for profile in profiles:
+            conn_id = profile.get("id")
+            if not conn_id:
+                continue
+            name = profile.get("name", "Unnamed")
+            host = profile.get("host", "localhost")
+            port = profile.get("port", "")
+            dtype = profile.get("driver_type", "")
+            prefix = "PG" if "postgres" in dtype else "MY"
+            self._conn_combo.addItem(f"[{prefix}] {name} ({host}:{port})", conn_id)
+
+        self._conn_combo.setCurrentIndex(0)
+        self._conn_combo.setEnabled(self._conn_combo.count() > 1 or bool(active_label))
+        self._combo_updating = False
+
+    def _on_connection_combo_changed(self, index: int) -> None:
+        if self._combo_updating or index <= 0:
+            return
+        conn_id = self._conn_combo.itemData(index)
+        if not conn_id:
+            return
+        self.connection_requested.emit(conn_id)
+        self._combo_updating = True
+        self._conn_combo.setCurrentIndex(0)
+        self._combo_updating = False
 
     def _on_search_changed(self, text: str) -> None:
         text = text.lower()

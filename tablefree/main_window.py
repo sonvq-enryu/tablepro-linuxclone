@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from tablefree.db.manager import ConnectionManager
+from tablefree.db.connection_store import ConnectionStore
 from tablefree.models import QueryResult
 from tablefree.services import QueryHistoryStore
 from tablefree.theme import set_dark, set_light
@@ -41,10 +42,12 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self._is_dark = True  # start with dark theme
         self._conn_manager = ConnectionManager()
+        self._connection_store = ConnectionStore()
         self._history = QueryHistoryStore()
         self._history.cleanup()
         self._active_driver = None
         self._active_connection_id: str | None = None
+        self._active_profile_id: str | None = None
         self._current_query = ""
         self._setup_window()
         self._setup_menu_bar()
@@ -235,6 +238,7 @@ class MainWindow(QMainWindow):
         self._sidebar.setMinimumWidth(200)
         self._sidebar.table_selected.connect(self._on_table_selected)
         self._sidebar.structure_requested.connect(self._on_structure_requested)
+        self._sidebar.connection_requested.connect(self._quick_connect)
 
         self._editor = EditorPanel()
         self._editor.query_submitted.connect(self._execute_query)
@@ -334,22 +338,75 @@ class MainWindow(QMainWindow):
     def _open_connection_dialog(self) -> None:
         dialog = ConnectionDialog(self._conn_manager, self)
         if dialog.exec():
-            if self._active_connection_id:
-                self._editor.save_tab_states()
-            self._active_driver = dialog.active_driver
-            if self._active_driver:
-                name = self._active_driver.config.name or "Unnamed"
-                self._conn_indicator.setText(f"●  Connected to {name}")
-                self._conn_indicator.setObjectName("status-connection-active")
-                self._conn_indicator.style().unpolish(self._conn_indicator)
-                self._conn_indicator.style().polish(self._conn_indicator)
-                self._sidebar.set_driver(self._active_driver)
-                self._editor.set_driver(self._active_driver)
-                self._result_view.set_driver(self._active_driver)
-                self._active_connection_id = self._make_connection_id()
-                if self._active_connection_id:
-                    self._editor.restore_tabs(self._active_connection_id)
-                    self._result_view.switch_tab(self._editor.active_tab_id())
+            self._apply_connected_driver(dialog.active_driver)
+            self._sidebar.refresh_connections()
+
+    def _apply_connected_driver(self, driver) -> None:
+        if not driver:
+            return
+        if self._active_connection_id:
+            self._editor.save_tab_states()
+
+        self._active_driver = driver
+        name = self._active_driver.config.name or "Unnamed"
+        self._conn_indicator.setText(f"●  Connected to {name}")
+        self._conn_indicator.setObjectName("status-connection-active")
+        self._conn_indicator.style().unpolish(self._conn_indicator)
+        self._conn_indicator.style().polish(self._conn_indicator)
+
+        self._sidebar.set_driver(self._active_driver)
+        self._editor.set_driver(self._active_driver)
+        self._result_view.set_driver(self._active_driver)
+        self._active_connection_id = self._make_connection_id()
+        if self._active_connection_id:
+            self._editor.restore_tabs(self._active_connection_id)
+            self._result_view.switch_tab(self._editor.active_tab_id())
+
+    def _quick_connect(self, connection_id: str) -> None:
+        profile = self._connection_store.load(connection_id)
+        if not profile:
+            QMessageBox.warning(
+                self, "Connection", "This saved connection could not be loaded."
+            )
+            self._sidebar.refresh_connections()
+            return
+        self._connect_with_profile(profile, connection_id)
+
+    def _connect_with_profile(self, profile: dict, connection_id: str) -> None:
+        try:
+            config = self._connection_store.to_config(profile)
+        except Exception as error:
+            QMessageBox.warning(self, "Connection", f"Invalid profile: {error}")
+            return
+
+        self._conn_indicator.setText("●  Connecting...")
+        self._conn_indicator.setObjectName("status-connection")
+        self._conn_indicator.style().unpolish(self._conn_indicator)
+        self._conn_indicator.style().polish(self._conn_indicator)
+
+        # Sidebar quick-connect switches active connection context.
+        self._conn_manager.close_all()
+
+        worker = QueryWorker(self._conn_manager.create_connection, connection_id, config)
+        worker.signals.finished.connect(
+            lambda driver: self._on_sidebar_connect_finished(driver, connection_id)
+        )
+        worker.signals.error.connect(self._on_sidebar_connect_error)
+        from PySide6.QtCore import QThreadPool
+
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_sidebar_connect_finished(self, driver, connection_id: str) -> None:
+        self._active_profile_id = connection_id
+        self._apply_connected_driver(driver)
+        self._sidebar.refresh_connections()
+
+    def _on_sidebar_connect_error(self, error: Exception) -> None:
+        self._conn_indicator.setText("●  Disconnected")
+        self._conn_indicator.setObjectName("status-connection")
+        self._conn_indicator.style().unpolish(self._conn_indicator)
+        self._conn_indicator.style().polish(self._conn_indicator)
+        QMessageBox.warning(self, "Connection failed", str(error))
 
     def _make_connection_id(self) -> str:
         if not self._active_driver or not self._active_driver.config:
