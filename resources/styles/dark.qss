@@ -52,7 +52,7 @@ QMenu::item {
 
 QMenu::item:selected {
     background-color: #313244;
-    color: #22c55e;
+    color: #89b4fa;
 }
 
 QMenu::separator {
@@ -109,11 +109,11 @@ QSplitter::handle:vertical {
 }
 
 QSplitter::handle:hover {
-    background-color: #22c55e;
+    background-color: #89b4fa;
 }
 
 QSplitter::handle:pressed {
-    background-color: #16a34a;
+    background-color: #74c7ec;
 }
 
 /* ====================================================
@@ -234,7 +234,7 @@ QLineEdit#sidebar-search {
 }
 
 QLineEdit#sidebar-search:focus {
-    border: 1px solid #22c55e;
+    border: 1px solid #89b4fa;
 }
 
 QLineEdit#sidebar-search::placeholder {
@@ -270,7 +270,7 @@ QTreeWidget#schema-tree::item:hover {
 
 QTreeWidget#schema-tree::item:selected {
     background-color: #313244;
-    color: #22c55e;
+    color: #89b4fa;
 }
 
 QTreeWidget#schema-tree::branch {
@@ -404,7 +404,7 @@ QTabWidget#editor-tabs > QTabBar::tab {
 QTabWidget#editor-tabs > QTabBar::tab:selected {
     background-color: #1e1e2e;
     color: #cdd6f4;
-    border-bottom: 2px solid #22c55e;
+    border-bottom: 2px solid #89b4fa;
 }
 
 QTabWidget#editor-tabs > QTabBar::tab:hover:!selected {
@@ -523,7 +523,7 @@ QTabWidget#result-tabs > QTabBar::tab {
 QTabWidget#result-tabs > QTabBar::tab:selected {
     background-color: #1e1e2e;
     color: #cdd6f4;
-    border-bottom: 2px solid #22c55e;
+    border-bottom: 2px solid #89b4fa;
 }
 
 QTabWidget#result-tabs > QTabBar::tab:hover:!selected {
@@ -667,6 +667,144 @@ QPlainTextEdit#history-output {
     padding: 10px 14px;
 }
 
+/* History panel */
+QWidget#history-panel {
+    background-color: #1e1e2e;
+}
+
+QLineEdit#history-search,
+QComboBox#history-filter {
+    background-color: #181825;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+QLineEdit#history-search:focus,
+QComboBox#history-filter:focus {
+    border-color: #89b4fa;
+}
+
+QTableWidget#history-table {
+    background-color: #1e1e2e;
+    alternate-background-color: #181825;
+    color: #cdd6f4;
+    gridline-color: #313244;
+    border: 1px solid #313244;
+    border-radius: 6px;
+}
+
+QPushButton#history-clear-btn,
+QPushButton#history-load-more {
+    background-color: transparent;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+QPushButton#history-clear-btn:hover,
+QPushButton#history-load-more:hover {
+    background-color: #313244;
+    color: #cdd6f4;
+}
+
+/* Filter panel */
+QPushButton#filter-remove-btn {
+    background-color: transparent;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 4px;
+}
+
+QPushButton#filter-remove-btn:hover {
+    background-color: #313244;
+    color: #f38ba8;
+}
+
+QFrame#filter-sep {
+    background-color: #313244;
+    border: none;
+    max-height: 1px;
+}
+
+QPushButton#filter-apply-btn {
+    background-color: #22c55e;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+}
+
+QPushButton#filter-apply-btn:hover {
+    background-color: #16a34a;
+}
+
+/* Table structure */
+QTableWidget#structure-columns-table,
+QTableWidget#structure-indexes-table,
+QTableWidget#structure-fk-table {
+    background-color: #1e1e2e;
+    alternate-background-color: #181825;
+    color: #cdd6f4;
+    gridline-color: #313244;
+    border: none;
+}
+
+QPlainTextEdit#structure-ddl-editor {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border: none;
+}
+
+QLabel#structure-loading {
+    color: #a6adc8;
+    font-size: 12px;
+    padding: 8px;
+}
+
+/* SQL preview dialog */
+QLabel#dialog-header {
+    color: #cdd6f4;
+    font-size: 16px;
+    font-weight: 700;
+    background: transparent;
+}
+
+QLabel#warning-banner {
+    color: #fab387;
+    background-color: rgba(250, 179, 135, 0.12);
+    border: 1px solid #fab387;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+QLabel#statement-count {
+    color: #6c7086;
+    font-size: 12px;
+}
+
+QPushButton#primary-button {
+    background-color: #22c55e;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-weight: 600;
+}
+
+QPushButton#primary-button:hover {
+    background-color: #16a34a;
+}
+
+QFrame#edit-sep {
+    background-color: #313244;
+    border: none;
+    max-width: 1px;
+}
+
 /* ====================================================
    SCROLLBARS
    ==================================================== */
@@ -759,7 +897,7 @@ QLineEdit#quick-connect-input {
 }
 
 QLineEdit#quick-connect-input:focus {
-    border: 1px solid #22c55e;
+    border: 1px solid #89b4fa;
 }
 
 QLineEdit#quick-connect-input::placeholder {
@@ -801,7 +939,7 @@ QComboBox#driver-select:hover {
 }
 
 QComboBox#driver-select:focus {
-    border-color: #22c55e;
+    border-color: #89b4fa;
 }
 
 QComboBox#driver-select::drop-down {
@@ -873,7 +1011,7 @@ QLineEdit#connection-name-input {
 }
 
 QLineEdit#connection-name-input:focus {
-    border-color: #22c55e;
+    border-color: #89b4fa;
 }
 
 QLineEdit#connection-name-input::placeholder {
@@ -891,7 +1029,7 @@ QLineEdit#host-input {
 }
 
 QLineEdit#host-input:focus {
-    border-color: #22c55e;
+    border-color: #89b4fa;
 }
 
 QLineEdit#host-input::placeholder {
@@ -908,7 +1046,7 @@ QSpinBox#port-input {
 }
 
 QSpinBox#port-input:focus {
-    border-color: #22c55e;
+    border-color: #89b4fa;
 }
 
 QLineEdit#database-input,
@@ -923,7 +1061,7 @@ QLineEdit#username-input {
 
 QLineEdit#database-input:focus,
 QLineEdit#username-input:focus {
-    border-color: #22c55e;
+    border-color: #89b4fa;
 }
 
 QLineEdit#database-input::placeholder,
@@ -941,7 +1079,7 @@ QLineEdit#password-input {
 }
 
 QLineEdit#password-input:focus {
-    border-color: #22c55e;
+    border-color: #89b4fa;
 }
 
 QLineEdit#password-input::placeholder {
@@ -989,12 +1127,12 @@ QCheckBox::indicator {
 }
 
 QCheckBox::indicator:checked {
-    background-color: #22c55e;
-    border-color: #22c55e;
+    background-color: #89b4fa;
+    border-color: #89b4fa;
 }
 
 QCheckBox::indicator:hover {
-    border-color: #22c55e;
+    border-color: #89b4fa;
 }
 
 QCheckBox:disabled {
@@ -1016,7 +1154,7 @@ QLineEdit#ssh-key-input {
 QLineEdit#ssh-host-input:focus,
 QLineEdit#ssh-user-input:focus,
 QLineEdit#ssh-key-input:focus {
-    border-color: #22c55e;
+    border-color: #89b4fa;
 }
 
 QSpinBox#ssh-port-input {
@@ -1129,7 +1267,13 @@ QListWidget#connection-list::item:hover {
 
 QListWidget#connection-list::item:selected {
     background-color: #313244;
-    color: #22c55e;
+    color: #89b4fa;
+}
+
+QLineEdit:focus,
+QSpinBox:focus,
+QComboBox:focus {
+    border: 1px solid #89b4fa;
 }
 
 QWidget#connection-form-panel {

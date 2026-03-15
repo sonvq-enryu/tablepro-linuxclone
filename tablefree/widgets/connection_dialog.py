@@ -27,6 +27,7 @@ from tablefree.db.driver import DatabaseDriver
 from tablefree.db.manager import ConnectionManager
 from tablefree.db.mysql_driver import MySQLDriver
 from tablefree.db.postgres_driver import PostgreSQLDriver
+from tablefree.theme import current
 from tablefree.workers import QueryWorker
 
 
@@ -616,13 +617,14 @@ class ConnectionDialog(QDialog):
 
     def _set_status(self, message: str, status_type: str) -> None:
         """Set status label with appropriate styling."""
+        colors = current()
         self._status_label.setText(message)
 
         if status_type == "error":
-            self._status_label.setStyleSheet("color: #ef4444;")
+            self._status_label.setStyleSheet(f"color: {colors.error.name()};")
         elif status_type == "success":
-            self._status_label.setStyleSheet("color: #22c55e;")
+            self._status_label.setStyleSheet(f"color: {colors.success.name()};")
         elif status_type == "loading":
-            self._status_label.setStyleSheet("color: #3b82f6;")
+            self._status_label.setStyleSheet(f"color: {colors.info.name()};")
         else:
-            self._status_label.setStyleSheet("color: #6b7280;")
+            self._status_label.setStyleSheet(f"color: {colors.muted.name()};")

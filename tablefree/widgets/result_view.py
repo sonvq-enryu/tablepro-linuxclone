@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -25,6 +25,9 @@ from PySide6.QtWidgets import (
 
 from tablefree.models import ChangeTracker, QueryResult
 from tablefree.models.change_tracker import CellEdit, RowInsert, RowDelete
+from tablefree.services.query_history import QueryHistoryStore
+from tablefree.theme import current
+from tablefree.widgets.history_panel import HistoryPanel
 from tablefree.widgets.table_structure import StructureView
 from tablefree.widgets.sql_preview_dialog import SQLPreviewDialog
 from tablefree.widgets.filter_panel import FilterPanel
@@ -35,17 +38,21 @@ from tablefree.db.driver import DatabaseDriver
 class ResultView(QWidget):
     """Bottom panel: query result display with Results/Messages tabs."""
 
+    export_requested = Signal()
+    query_load_requested = Signal(str)
+    query_run_requested = Signal(str)
+
     NULL_ROLE = Qt.ItemDataRole.UserRole + 1
     ORIGINAL_VALUE_ROLE = Qt.ItemDataRole.UserRole + 2
     EDIT_STATE_ROLE = (
         Qt.ItemDataRole.UserRole + 3
     )  # None, 'edited', 'inserted', 'deleted'
 
-    EDIT_BG = QColor(249, 226, 175, 38)  # yellow tint ~15% opacity
-    INSERT_BG = QColor(166, 227, 161, 38)  # green tint ~15% opacity
-    DELETE_BG = QColor(243, 139, 168, 25)  # red tint ~10% opacity
-
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        history_store: QueryHistoryStore | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("result-panel")
         self._current_result: QueryResult | None = None
@@ -57,34 +64,60 @@ class ResultView(QWidget):
         self._current_table: str = ""
         self._current_schema: str = ""
         self._primary_key_cols: list[str] = []
+        self._history_store = history_store
         
-        self._active_tab_id: int | None = None
-        self._change_trackers: dict[int, ChangeTracker] = {}
-        self._original_row_data_per_tab: dict[int, dict[int, list[Any]]] = {}
+        self._active_tab_id: str | None = None
+        self._change_trackers: dict[str, ChangeTracker] = {}
+        self._original_row_data_per_tab: dict[str, dict[int, list[Any]]] = {}
         
         self._original_query: str = ""
+        self._query_mode: str = "query"
         self._filter_state_per_tab: dict[str, dict] = {}
         self._setup_ui()
         self._table.installEventFilter(self)
         self._table.cellChanged.connect(self._on_cell_changed)
         self._table.cellDoubleClicked.connect(self._on_cell_double_clicked)
 
+    @staticmethod
+    def _edit_bg() -> QColor:
+        return current().edit_bg
+
+    @staticmethod
+    def _insert_bg() -> QColor:
+        return current().insert_bg
+
+    @staticmethod
+    def _delete_bg() -> QColor:
+        return current().delete_bg
+
     @property
     def _change_tracker(self) -> ChangeTracker:
         """Get the active change tracker for the current tab."""
-        tab_id = self._active_tab_id if self._active_tab_id is not None else 0
+        tab_id = self._active_tab_id if self._active_tab_id is not None else "__default__"
         return self._change_trackers.setdefault(tab_id, ChangeTracker())
 
     @property
     def _original_row_data(self) -> dict[int, list[Any]]:
         """Get the active original row data for the current tab."""
-        tab_id = self._active_tab_id if self._active_tab_id is not None else 0
+        tab_id = self._active_tab_id if self._active_tab_id is not None else "__default__"
         return self._original_row_data_per_tab.setdefault(tab_id, {})
 
-    def switch_tab(self, tab_id: int) -> None:
+    def switch_tab(self, tab_id: str) -> None:
         """Switch active change tracker when the editor tab changes."""
+        if self._active_tab_id is not None:
+            self._filter_state_per_tab[self._active_tab_id] = (
+                self._filter_panel.get_filter_state()
+            )
         self._active_tab_id = tab_id
+        self._restore_filter_state(tab_id)
         self._update_pending_label()
+
+    def remove_tab_state(self, tab_id: str) -> None:
+        self._change_trackers.pop(tab_id, None)
+        self._original_row_data_per_tab.pop(tab_id, None)
+        self._filter_state_per_tab.pop(tab_id, None)
+        if self._active_tab_id == tab_id:
+            self._active_tab_id = None
 
     def eventFilter(self, obj, event):
         if obj == self._table and event.type() == event.Type.KeyPress:
@@ -141,10 +174,12 @@ class ResultView(QWidget):
         self._filter_toggle_btn.clicked.connect(self._toggle_filter_panel)
         info_layout.addWidget(self._filter_toggle_btn)
 
-        export_label = QLabel("Export ↗")
-        export_label.setObjectName("result-action-link")
-        export_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        info_layout.addWidget(export_label)
+        self._export_btn = QPushButton("Export ↗")
+        self._export_btn.setObjectName("result-action-link")
+        self._export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._export_btn.setFlat(True)
+        self._export_btn.clicked.connect(self.export_requested.emit)
+        info_layout.addWidget(self._export_btn)
 
         results_layout.addWidget(info_bar)
 
@@ -193,12 +228,12 @@ class ResultView(QWidget):
         history_widget = QWidget()
         hist_layout = QVBoxLayout(history_widget)
         hist_layout.setContentsMargins(0, 0, 0, 0)
-
-        history_output = QPlainTextEdit()
-        history_output.setObjectName("history-output")
-        history_output.setReadOnly(True)
-        history_output.setPlaceholderText("Query history will appear here…")
-        hist_layout.addWidget(history_output)
+        self._history_panel = None
+        if self._history_store is not None:
+            self._history_panel = HistoryPanel(self._history_store)
+            self._history_panel.query_load_requested.connect(self.query_load_requested.emit)
+            self._history_panel.query_run_requested.connect(self.query_run_requested.emit)
+            hist_layout.addWidget(self._history_panel)
         self._tabs.addTab(history_widget, "History")
 
         self._structure_view = StructureView()
@@ -316,28 +351,36 @@ class ResultView(QWidget):
 
     def _on_filters_applied(self, where_clause: str, params: tuple) -> None:
         """Handle filters applied - re-execute query with WHERE clause."""
-        if not self._current_table or not self._driver:
+        if not self._driver:
             return
 
         driver_type = type(self._driver).__name__.lower()
 
-        page_size_str = str(self._page_size) if self._page_size > 0 else "1000"
-        offset = self._current_page * self._page_size
+        offset = self._current_page * self._page_size if self._page_size > 0 else 0
 
         schema = self._current_schema or "public"
         table = self._current_table
+        sql = ""
 
-        if "mysql" in driver_type:
-            quoted_schema = f"`{schema}`"
-            quoted_table = f"`{table}`"
-        else:
-            quoted_schema = f'"{schema}"'
-            quoted_table = f'"{table}"'
+        if self._query_mode == "table" and table:
+            if "mysql" in driver_type:
+                quoted_schema = f"`{schema}`"
+                quoted_table = f"`{table}`"
+            else:
+                quoted_schema = f'"{schema}"'
+                quoted_table = f'"{table}"'
 
-        if where_clause:
-            sql = f"SELECT * FROM {quoted_schema}.{quoted_table} WHERE {where_clause} LIMIT {page_size_str} OFFSET {offset}"
+            if self._page_size > 0:
+                sql = (
+                    f"SELECT * FROM {quoted_schema}.{quoted_table} "
+                    f"WHERE {where_clause} LIMIT {self._page_size} OFFSET {offset}"
+                )
+            else:
+                sql = f"SELECT * FROM {quoted_schema}.{quoted_table} WHERE {where_clause}"
         else:
-            sql = f"SELECT * FROM {quoted_schema}.{quoted_table} LIMIT {page_size_str} OFFSET {offset}"
+            sql = self._build_filtered_query(where_clause) or ""
+            if not sql:
+                return
 
         try:
             result = self._driver.execute(sql, params)
@@ -361,27 +404,35 @@ class ResultView(QWidget):
 
     def _on_filters_cleared(self) -> None:
         """Handle filters cleared - re-execute original query."""
-        if not self._current_table or not self._driver or not self._original_query:
+        if not self._driver or not self._original_query:
             return
 
         try:
             driver_type = type(self._driver).__name__.lower()
-            page_size_str = str(self._page_size) if self._page_size > 0 else "1000"
-            offset = self._current_page * self._page_size
+            offset = self._current_page * self._page_size if self._page_size > 0 else 0
 
             schema = self._current_schema or "public"
             table = self._current_table
+            sql = ""
+            params: tuple = ()
 
-            if "mysql" in driver_type:
-                quoted_schema = f"`{schema}`"
-                quoted_table = f"`{table}`"
+            if self._query_mode == "table" and table:
+                if "mysql" in driver_type:
+                    quoted_schema = f"`{schema}`"
+                    quoted_table = f"`{table}`"
+                else:
+                    quoted_schema = f'"{schema}"'
+                    quoted_table = f'"{table}"'
+
+                if self._page_size > 0:
+                    sql = f"SELECT * FROM {quoted_schema}.{quoted_table} LIMIT {self._page_size} OFFSET {offset}"
+                else:
+                    sql = f"SELECT * FROM {quoted_schema}.{quoted_table}"
             else:
-                quoted_schema = f'"{schema}"'
-                quoted_table = f'"{table}"'
+                sql = self._original_query.strip().rstrip(";")
+                params = ()
 
-            sql = f"SELECT * FROM {quoted_schema}.{quoted_table} LIMIT {page_size_str} OFFSET {offset}"
-
-            result = self._driver.execute(sql)
+            result = self._driver.execute(sql, params)
             if result and isinstance(result, list) and result:
                 if isinstance(result[0], dict):
                     columns = list(result[0].keys())
@@ -449,7 +500,7 @@ class ResultView(QWidget):
         # Update visual state
         if edit_state != "inserted":
             item.setData(self.EDIT_STATE_ROLE, "edited")
-            item.setBackground(self.EDIT_BG)
+            item.setBackground(self._edit_bg())
 
         # Update pending changes label
         self._update_pending_label()
@@ -484,7 +535,7 @@ class ResultView(QWidget):
             item.setData(self.NULL_ROLE, False)
             item.setData(self.ORIGINAL_VALUE_ROLE, None)
             item.setData(self.EDIT_STATE_ROLE, "inserted")
-            item.setBackground(self.INSERT_BG)
+            item.setBackground(self._insert_bg())
             self._table.setItem(row_count, col, item)
             row_data.append(None)
 
@@ -527,7 +578,7 @@ class ResultView(QWidget):
                 item = self._table.item(row, col)
                 if item:
                     item.setData(self.EDIT_STATE_ROLE, "deleted")
-                    item.setBackground(self.DELETE_BG)
+                    item.setBackground(self._delete_bg())
                     font = item.font()
                     font.setStrikeOut(True)
                     item.setFont(font)
@@ -633,6 +684,12 @@ class ResultView(QWidget):
         has_table = bool(self._current_table)
         self._edit_toolbar.setVisible(has_table)
 
+    def _restore_filter_state(self, tab_id: str) -> None:
+        state = self._filter_state_per_tab.get(tab_id)
+        self._filter_panel.reset_state()
+        if state:
+            self._filter_panel.restore_filter_state(state)
+
     def _detect_table_from_query(self, query: str) -> None:
         """Try to detect table name from SELECT query."""
         if not query:
@@ -641,17 +698,19 @@ class ResultView(QWidget):
             self._primary_key_cols = []
             return
 
-        query_upper = query.upper().strip()
+        query_clean = query.strip()
 
         # Simple pattern matching for "SELECT * FROM table" or "SELECT * FROM schema.table"
         import re
 
-        # Match: SELECT ... FROM ["`]schema["`].["`]table["`] ... or SELECT ... FROM table ...
-        pattern = r"FROM\s+(?:(?P<schema>[\w]+)\.)?(?P<table>[\w]+)"
-        match = re.search(pattern, query_upper)
+        # Match: SELECT ... FROM ["`]?schema["`]?.["`]?table["`]? ... or SELECT ... FROM table ...
+        pattern = r'FROM\s+(?:(?P<schema>[`"]?[\w]+[`"]?)\.)?(?P<table>[`"]?[\w]+[`"]?)'
+        match = re.search(pattern, query_clean, flags=re.IGNORECASE)
         if match:
-            self._current_table = match.group("table")
-            self._current_schema = match.group("schema") or "public"
+            table = match.group("table") or ""
+            schema = match.group("schema") or "public"
+            self._current_table = table.strip('`"')
+            self._current_schema = schema.strip('`"')
         else:
             self._current_table = ""
             self._current_schema = ""
@@ -669,6 +728,54 @@ class ResultView(QWidget):
                         break
             except Exception:
                 pass
+
+    def _is_simple_table_query(self, query: str) -> bool:
+        """Check if query is a simple SELECT * FROM table query."""
+        if not query:
+            return False
+
+        import re
+
+        q = query.strip().rstrip(";")
+        if not re.match(r"(?is)^\s*SELECT\s+\*\s+FROM\s+", q):
+            return False
+
+        q_upper = re.sub(r"\s+", " ", q.upper())
+        for keyword in (" JOIN ", " GROUP BY ", " HAVING ", " UNION ", " INTERSECT ", " EXCEPT "):
+            if keyword in q_upper:
+                return False
+
+        return True
+
+    def _build_filtered_query(self, where_clause: str) -> str | None:
+        """Build a filtered SQL query for non-table-browse mode."""
+        if not self._original_query:
+            return None
+
+        import re
+
+        base = self._original_query.strip().rstrip(";")
+        if not re.match(r"(?is)^\s*SELECT\s+", base):
+            self.append_message("Filters only supported for SELECT queries.")
+            return None
+
+        upper = base.upper()
+        insert_pos = len(base)
+        for kw in (" ORDER BY ", " LIMIT ", " OFFSET "):
+            idx = upper.find(kw)
+            if idx != -1 and idx < insert_pos:
+                insert_pos = idx
+
+        before = base[:insert_pos]
+        after = base[insert_pos:]
+        clause = f"({where_clause})"
+
+        if re.search(r"(?is)\bWHERE\b", before):
+            combined = f"{before} AND {clause} {after}"
+        else:
+            combined = f"{before} WHERE {clause} {after}"
+
+        return combined.strip()
 
     def _on_undo(self) -> None:
         """Handle undo request."""
@@ -732,7 +839,7 @@ class ResultView(QWidget):
                     item.setData(self.NULL_ROLE, False)
                 item.setText(display)
                 item.setData(self.EDIT_STATE_ROLE, "edited")
-                item.setBackground(self.EDIT_BG)
+                item.setBackground(self._edit_bg())
 
         elif isinstance(change, RowInsert):
             # Re-insert row
@@ -743,7 +850,7 @@ class ResultView(QWidget):
                 item.setData(self.NULL_ROLE, value is None)
                 item.setData(self.ORIGINAL_VALUE_ROLE, value)
                 item.setData(self.EDIT_STATE_ROLE, "inserted")
-                item.setBackground(self.INSERT_BG)
+                item.setBackground(self._insert_bg())
                 self._table.setItem(row_count, col_idx, item)
 
         elif isinstance(change, RowDelete):
@@ -752,7 +859,7 @@ class ResultView(QWidget):
                 item = self._table.item(change.row_index, col)
                 if item:
                     item.setData(self.EDIT_STATE_ROLE, "deleted")
-                    item.setBackground(self.DELETE_BG)
+                    item.setBackground(self._delete_bg())
                     font = item.font()
                     font.setStrikeOut(True)
                     item.setFont(font)
@@ -1028,7 +1135,7 @@ class ResultView(QWidget):
         self._sort_order = None
 
         # Clear change tracker
-        tab_id = self._active_tab_id if self._active_tab_id is not None else 0
+        tab_id = self._active_tab_id if self._active_tab_id is not None else "__default__"
         self._change_trackers[tab_id] = ChangeTracker()
         self._original_row_data.clear()
 
@@ -1053,6 +1160,8 @@ class ResultView(QWidget):
 
         # Try to detect table from query for inline editing
         self._detect_table_from_query(result.query)
+
+        self._query_mode = "table" if self._is_simple_table_query(result.query) else "query"
 
         # Save original query for filter re-execution
         self._original_query = result.query
@@ -1085,3 +1194,35 @@ class ResultView(QWidget):
         """Show the structure tab for the given table."""
         self._tabs.setCurrentIndex(3)
         self._structure_view.load_structure(driver, table, schema)
+
+    def show_history(self) -> None:
+        self._tabs.setCurrentIndex(2)
+
+    def refresh_history(self) -> None:
+        if self._history_panel is not None:
+            self._history_panel.refresh(reset=True)
+
+    @property
+    def current_result(self) -> QueryResult | None:
+        """Expose the currently visible result set."""
+        return self._current_result
+
+    @property
+    def current_table(self) -> str:
+        """Expose detected table name for export defaults."""
+        return self._current_table
+
+    def refresh_theme(self) -> None:
+        """Re-apply row edit highlights with the currently active theme."""
+        for row in range(self._table.rowCount()):
+            for col in range(self._table.columnCount()):
+                item = self._table.item(row, col)
+                if item is None:
+                    continue
+                state = item.data(self.EDIT_STATE_ROLE)
+                if state == "edited":
+                    item.setBackground(self._edit_bg())
+                elif state == "inserted":
+                    item.setBackground(self._insert_bg())
+                elif state == "deleted":
+                    item.setBackground(self._delete_bg())

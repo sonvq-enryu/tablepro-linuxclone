@@ -1,9 +1,11 @@
 """Unit tests for QueryWorker."""
 
-from PySide6.QtCore import QCoreApplication, QThreadPool, QEventLoop, QTimer
+from PySide6.QtCore import QEventLoop, QThreadPool, QTimer
+from PySide6.QtWidgets import QApplication
 
-if not QCoreApplication.instance():
-    QCoreApplication(["--platform", "offscreen"])
+APP = QApplication.instance()
+if APP is None:
+    APP = QApplication(["--platform", "offscreen"])
 
 from tablefree.workers import QueryWorker
 

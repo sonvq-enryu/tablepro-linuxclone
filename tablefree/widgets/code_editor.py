@@ -2,7 +2,6 @@
 
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtGui import (
-    QColor,
     QFont,
     QFontInfo,
     QPainter,
@@ -14,6 +13,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
+from tablefree.theme import current
 from tablefree.widgets.sql_highlighter import SQLHighlighter
 
 
@@ -56,15 +56,7 @@ class CodeEditor(QPlainTextEdit):
 
         self.setTabStopDistance(32.0)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-
-        self.setStyleSheet("""
-            CodeEditor {
-                background-color: #1e1e2e;
-                color: #cdd6f4;
-                selection-background-color: #45475a;
-                selection-color: #cdd6f4;
-            }
-        """)
+        self.refresh_theme()
 
     def _connect_signals(self) -> None:
         self.blockCountChanged.connect(self._update_line_number_area_width)
@@ -103,8 +95,9 @@ class CodeEditor(QPlainTextEdit):
         return space
 
     def _line_number_area_paint_event(self, event: QPaintEvent) -> None:
+        colors = current()
         painter = QPainter(self._line_number_area)
-        painter.fillRect(event.rect(), QColor("#181825"))
+        painter.fillRect(event.rect(), colors.gutter)
 
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
@@ -118,9 +111,9 @@ class CodeEditor(QPlainTextEdit):
                 number = str(block_number + 1)
 
                 if block == self.textCursor().block():
-                    painter.setPen(QColor("#cdd6f4"))
+                    painter.setPen(colors.line_num_active)
                 else:
-                    painter.setPen(QColor("#585b70"))
+                    painter.setPen(colors.line_num)
 
                 painter.drawText(
                     0,
@@ -138,16 +131,35 @@ class CodeEditor(QPlainTextEdit):
 
     def _highlight_current_line(self) -> None:
         extra_selections = []
+        colors = current()
 
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            selection.format.setBackground(QColor("#242438"))
+            selection.format.setBackground(colors.current_line)
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
             selection.cursor.clearSelection()
             extra_selections.append(selection)
 
         self.setExtraSelections(extra_selections)
+
+    def refresh_theme(self) -> None:
+        """Apply runtime colors and refresh painter-based elements."""
+        colors = current()
+        self.setStyleSheet(
+            f"""
+            CodeEditor {{
+                background-color: {colors.base.name()};
+                color: {colors.text.name()};
+                selection-background-color: {colors.overlay.name()};
+                selection-color: {colors.text.name()};
+            }}
+            """
+        )
+        self._highlighter.refresh_theme()
+        self._line_number_area.update()
+        self._highlight_current_line()
+        self.viewport().update()
 
     def selectAll(self) -> None:
         cursor = self.textCursor()

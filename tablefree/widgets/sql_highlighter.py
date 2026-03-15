@@ -4,12 +4,13 @@ import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import (
-    QColor,
     QFont,
     QSyntaxHighlighter,
     QTextCharFormat,
     QTextDocument,
 )
+
+from tablefree.theme import current
 
 
 class SQLHighlighter(QSyntaxHighlighter):
@@ -262,29 +263,32 @@ class SQLHighlighter(QSyntaxHighlighter):
         self._setup_highlighting_rules()
 
     def _setup_highlighting_rules(self) -> None:
+        colors = current()
+        self._highlighting_rules.clear()
+
         keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#cba6f7"))
+        keyword_format.setForeground(colors.syn_keyword)
         keyword_format.setFontWeight(QFont.Weight.Bold)
 
         datatype_format = QTextCharFormat()
-        datatype_format.setForeground(QColor("#f9e2af"))
+        datatype_format.setForeground(colors.syn_datatype)
         datatype_format.setFontWeight(QFont.Weight.Bold)
 
         function_format = QTextCharFormat()
-        function_format.setForeground(QColor("#89b4fa"))
+        function_format.setForeground(colors.syn_function)
 
         string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#a6e3a1"))
+        string_format.setForeground(colors.syn_string)
 
         number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#fab387"))
+        number_format.setForeground(colors.syn_number)
 
         comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6c7086"))
+        comment_format.setForeground(colors.syn_comment)
         comment_format.setFontItalic(True)
 
         operator_format = QTextCharFormat()
-        operator_format.setForeground(QColor("#89dceb"))
+        operator_format.setForeground(colors.syn_operator)
 
         keyword_pattern = (
             r"\b(" + "|".join(re.escape(k) for k in self.KEYWORDS) + r")\b"
@@ -360,6 +364,11 @@ class SQLHighlighter(QSyntaxHighlighter):
 
     def _comment_format(self) -> QTextCharFormat:
         fmt = QTextCharFormat()
-        fmt.setForeground(QColor("#6c7086"))
+        fmt.setForeground(current().syn_comment)
         fmt.setFontItalic(True)
         return fmt
+
+    def refresh_theme(self) -> None:
+        """Rebuild formats from active theme and repaint syntax highlighting."""
+        self._setup_highlighting_rules()
+        self.rehighlight()

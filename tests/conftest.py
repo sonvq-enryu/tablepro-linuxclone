@@ -1,8 +1,12 @@
 """Shared test fixtures for database driver tests."""
 
+import os
+
 import pytest
 
 from tablefree.db.config import ConnectionConfig, DriverType
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 @pytest.fixture

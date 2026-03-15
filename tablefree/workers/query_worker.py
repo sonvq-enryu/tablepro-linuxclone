@@ -13,6 +13,7 @@ class _WorkerSignals(QObject):
 
     finished = Signal(object)
     error = Signal(Exception)
+    progress = Signal(int, int)
 
 
 class QueryWorker(QRunnable):
@@ -33,6 +34,10 @@ class QueryWorker(QRunnable):
         self.args = args
         self.kwargs = kwargs
         self.signals = _WorkerSignals()
+
+    def report_progress(self, current: int, total: int) -> None:
+        """Emit incremental progress from worker tasks."""
+        self.signals.progress.emit(current, total)
 
     def run(self) -> None:
         """Execute the function and emit the appropriate signal."""

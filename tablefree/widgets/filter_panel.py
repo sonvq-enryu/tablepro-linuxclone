@@ -129,6 +129,17 @@ class FilterRow(QWidget):
             self._column_combo.addItems(self._columns)
         self._update_operators()
 
+    def set_columns(self, columns: list[str]) -> None:
+        current = self._column_combo.currentText()
+        self._columns = columns
+        self._populate_columns()
+        if current:
+            idx = self._column_combo.findText(current)
+            if idx >= 0:
+                self._column_combo.setCurrentIndex(idx)
+            else:
+                self._column_combo.setCurrentText(current)
+
     def _update_operators(self) -> None:
         self._operator_combo.clear()
         column = self._column_combo.currentText()
@@ -390,6 +401,8 @@ class FilterPanel(QWidget):
         self._column_types = column_types or []
 
         for row in self._filter_rows:
+            if hasattr(row, "set_columns"):
+                row.set_columns(self._columns)
             if hasattr(row, "set_column_types"):
                 row.set_column_types(self._column_types)
 
@@ -401,8 +414,8 @@ class FilterPanel(QWidget):
         row = FilterRow(self._columns, self)
         row.set_column_types(self._column_types)
 
-        if len(self._filter_rows) > 0:
-            row.set_logic_visible(True)
+        is_first = len(self._filter_rows) == 0
+        row.set_logic_visible(not is_first)
 
         row._remove_btn.clicked.connect(lambda: self._remove_filter_row(row))
 
@@ -418,7 +431,7 @@ class FilterPanel(QWidget):
             self._filter_rows[0].set_logic_visible(False)
 
     def _on_quick_search_changed(self, text: str) -> None:
-        if not hasattr(self, "_table_widget"):
+        if self._table_widget is None:
             return
 
         search_text = text.lower()
@@ -571,8 +584,12 @@ class FilterPanel(QWidget):
         ]
 
         settings = QSettings()
-        key = f"filters/{self._connection_id}/{self._table_name}/presets/{name}"
-        settings.setValue(key, preset_data)
+        preset_key = f"filters/{self._connection_id}/{self._table_name}/presets"
+        preset_dict = settings.value(preset_key) or {}
+        if not isinstance(preset_dict, dict):
+            preset_dict = {}
+        preset_dict[name] = preset_data
+        settings.setValue(preset_key, preset_dict)
 
         QMessageBox.information(self, "Save Preset", f"Preset '{name}' saved.")
 
@@ -584,12 +601,12 @@ class FilterPanel(QWidget):
         settings = QSettings()
         preset_key = f"filters/{self._connection_id}/{self._table_name}/presets"
 
-        preset_names = settings.value(preset_key)
-        if not preset_names:
+        preset_dict = settings.value(preset_key)
+        if not preset_dict:
             QMessageBox.information(self, "Load Preset", "No saved presets found.")
             return
 
-        preset_dict = dict(preset_names) if isinstance(preset_names, dict) else {}
+        preset_dict = dict(preset_dict) if isinstance(preset_dict, dict) else {}
         if not preset_dict:
             QMessageBox.information(self, "Load Preset", "No saved presets found.")
             return
@@ -630,12 +647,20 @@ class FilterPanel(QWidget):
         return {
             "visible": self.isVisible(),
             "conditions": [row.get_condition().__dict__ for row in self._filter_rows],
+            "quick_search": self._quick_search.text(),
         }
+
+    def reset_state(self) -> None:
+        """Reset filter panel state without emitting signals."""
+        for row in self._filter_rows[:]:
+            row.deleteLater()
+        self._filter_rows.clear()
+        self._quick_search.clear()
+        self.setVisible(False)
 
     def restore_filter_state(self, state: dict) -> None:
         """Restore filter state from persistence."""
-        if state.get("visible"):
-            self.setVisible(True)
+        self.setVisible(bool(state.get("visible")))
 
         conditions = state.get("conditions", [])
         for cond_data in conditions:
@@ -644,3 +669,7 @@ class FilterPanel(QWidget):
                 row = self._filter_rows[-1]
                 cond = FilterCondition(**cond_data)
                 row.set_condition(cond)
+
+        quick_search = state.get("quick_search")
+        if isinstance(quick_search, str):
+            self._quick_search.setText(quick_search)

@@ -1,15 +1,22 @@
 """Editor panel widget — Tabbed query editor with toolbar."""
 
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import asdict, dataclass
+from uuid import uuid4
+
 import sqlparse
 
-from PySide6.QtCore import QEvent, QObject, Qt, Signal
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QEvent, QObject, QPoint, QSettings, Qt, QTimer, Signal
+from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
-    QSizePolicy,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -18,20 +25,37 @@ from PySide6.QtWidgets import (
 from tablefree.widgets.code_editor import CodeEditor
 
 
+@dataclass
+class TabState:
+    tab_id: str
+    title: str
+    sql: str
+    pinned: bool = False
+    # In-memory hint only; query results are never persisted.
+    last_query: str | None = None
+
+
 class EditorPanel(QWidget):
     """Center panel: tabbed SQL query editor with action toolbar."""
 
-    _tab_counter: int = 1
-
     query_submitted = Signal(str)
-    tab_changed = Signal(int)
+    tab_changed = Signal(str)
+    tab_closed = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("editor-panel")
         self._driver = None
         self._query_running = False
+        self._connection_id: str | None = None
+        self._tab_states: dict[str, TabState] = {}
+        self._closed_tabs: list[TabState] = []
+        self._next_query_number = 1
+        self._restoring_tabs = False
+        self._setup_autosave()
         self._setup_ui()
+        self._setup_tab_context_menu()
+        self._setup_shortcuts()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -93,6 +117,7 @@ class EditorPanel(QWidget):
         self._tabs.setDocumentMode(True)
         self._tabs.tabCloseRequested.connect(self._close_tab)
         self._tabs.currentChanged.connect(self._on_tab_changed)
+        self._tabs.tabBar().tabMoved.connect(self._on_tab_reordered)
 
         add_tab_btn = QPushButton(" + ")
         add_tab_btn.setObjectName("add-tab-btn")
@@ -102,10 +127,44 @@ class EditorPanel(QWidget):
         add_tab_btn.clicked.connect(self._new_tab)
         self._tabs.setCornerWidget(add_tab_btn, Qt.Corner.TopRightCorner)
 
-        self._add_tab("[Query 1]")
+        self._new_tab(title="[Query 1]")
         layout.addWidget(self._tabs, stretch=1)
 
-    def _add_tab(self, title: str) -> None:
+    def _setup_autosave(self) -> None:
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(500)
+        self._save_timer.timeout.connect(self._save_tab_states)
+
+    def _setup_tab_context_menu(self) -> None:
+        tab_bar = self._tabs.tabBar()
+        tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tab_bar.customContextMenuRequested.connect(self._show_tab_context_menu)
+
+    def _setup_shortcuts(self) -> None:
+        self._shortcuts: list[QShortcut] = []
+        self._register_shortcut("Ctrl+N", self._new_tab)
+        self._register_shortcut("Ctrl+T", self._new_tab)
+        self._register_shortcut("Ctrl+W", self._close_current_tab)
+        self._register_shortcut("Ctrl+Shift+T", self._reopen_last_closed_tab)
+        self._register_shortcut("Ctrl+Shift+]", self._next_tab)
+        self._register_shortcut("Ctrl+Shift+[", self._previous_tab)
+        for idx in range(1, 10):
+            self._register_shortcut(
+                f"Ctrl+{idx}",
+                lambda tab_number=idx: self._switch_to_tab_number(tab_number),
+            )
+
+    def _register_shortcut(self, key: str, callback) -> None:
+        shortcut = QShortcut(QKeySequence(key), self)
+        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        shortcut.activated.connect(callback)
+        self._shortcuts.append(shortcut)
+
+    def _display_title(self, state: TabState) -> str:
+        return f"[P] {state.title}" if state.pinned else state.title
+
+    def _add_tab_with_state(self, state: TabState, *, set_current: bool = True) -> None:
         editor = CodeEditor()
         editor.setObjectName("sql-editor")
         editor.setPlaceholderText(
@@ -114,46 +173,346 @@ class EditorPanel(QWidget):
             "SELECT * FROM users LIMIT 100;"
         )
         editor.installEventFilter(self)
-        editor.setProperty("tab_id", self._tab_counter)
-        self._tabs.addTab(editor, title)
-        self._tabs.setCurrentWidget(editor)
+        editor.setProperty("tab_id", state.tab_id)
+        editor.textChanged.connect(self._on_text_changed)
+        editor.setPlainText(state.sql)
+        self._tab_states[state.tab_id] = state
+        self._tabs.addTab(editor, self._display_title(state))
+        if set_current:
+            self._tabs.setCurrentWidget(editor)
 
-    def _new_tab(self) -> None:
-        self._tab_counter += 1
-        self._add_tab(f"[Query {self._tab_counter}]")
+    def _new_tab(self, *, title: str | None = None, sql: str = "", pinned: bool = False) -> None:
+        if title is None:
+            title = f"[Query {self._next_query_number}]"
+        self._next_query_number += 1
+        state = TabState(tab_id=str(uuid4()), title=title, sql=sql, pinned=pinned)
+        self._add_tab_with_state(state, set_current=True)
+        self._save_if_needed()
 
-    def _close_tab(self, index: int) -> None:
-        if self._tabs.count() > 1:
-            self._tabs.removeTab(index)
+    def _close_tab(self, index: int, *, push_closed: bool = True) -> None:
+        editor = self._tabs.widget(index)
+        if not isinstance(editor, CodeEditor):
+            return
+        tab_id = editor.property("tab_id")
+        if not isinstance(tab_id, str):
+            return
+        state = self._tab_states.get(tab_id)
+        if state is None:
+            return
+        if state.pinned:
+            return
+        if self._tabs.count() <= 1:
+            return
+
+        state.sql = editor.toPlainText()
+        if push_closed:
+            self._closed_tabs.append(TabState(**asdict(state)))
+            self._closed_tabs = self._closed_tabs[-10:]
+        self._tabs.removeTab(index)
+        self._tab_states.pop(tab_id, None)
+        self.tab_closed.emit(tab_id)
+        self._save_if_needed()
 
     def _on_tab_changed(self, index: int) -> None:
         widget = self._tabs.widget(index)
         if widget:
             tab_id = widget.property("tab_id")
-            if tab_id is not None:
+            if isinstance(tab_id, str):
                 self.tab_changed.emit(tab_id)
+                self._save_if_needed()
+
+    def _on_tab_reordered(self, _from: int, _to: int) -> None:
+        self._save_if_needed()
+
+    def _on_text_changed(self) -> None:
+        editor = self.sender()
+        if not isinstance(editor, CodeEditor):
+            return
+        tab_id = editor.property("tab_id")
+        if not isinstance(tab_id, str):
+            return
+        state = self._tab_states.get(tab_id)
+        if state is None:
+            return
+        state.sql = editor.toPlainText()
+        self._save_if_needed()
+
+    def _save_if_needed(self) -> None:
+        if self._restoring_tabs:
+            return
+        self._save_timer.start()
+
+    def _active_tab_id_or_none(self) -> str | None:
+        widget = self._tabs.currentWidget()
+        if widget is not None:
+            tab_id = widget.property("tab_id")
+            if isinstance(tab_id, str):
+                return tab_id
+        return None
+
+    def _show_tab_context_menu(self, pos: QPoint) -> None:
+        tab_bar = self._tabs.tabBar()
+        tab_index = tab_bar.tabAt(pos)
+        if tab_index < 0:
+            return
+        editor = self._tabs.widget(tab_index)
+        if not isinstance(editor, CodeEditor):
+            return
+        tab_id = editor.property("tab_id")
+        if not isinstance(tab_id, str):
+            return
+        state = self._tab_states.get(tab_id)
+        if state is None:
+            return
+
+        labels = self._context_menu_labels_for_index(tab_index)
+        menu = QMenu(self)
+        close_action = menu.addAction(labels[0])
+        close_action.setEnabled(not state.pinned)
+        close_others_action = menu.addAction(labels[1])
+        close_all_action = menu.addAction(labels[2])
+        menu.addSeparator()
+        pin_action = menu.addAction(labels[3])
+        duplicate_action = menu.addAction(labels[4])
+
+        chosen = menu.exec(tab_bar.mapToGlobal(pos))
+        if chosen == close_action:
+            self._close_tab(tab_index)
+        elif chosen == close_others_action:
+            self._close_other_tabs(tab_index)
+        elif chosen == close_all_action:
+            self._close_all_non_pinned()
+        elif chosen == pin_action:
+            self._toggle_pin(tab_index)
+        elif chosen == duplicate_action:
+            self._duplicate_tab(tab_index)
+
+    def _context_menu_labels_for_index(self, index: int) -> list[str]:
+        labels = ["Close", "Close Others", "Close All", "Pin Tab", "Duplicate"]
+        editor = self._tabs.widget(index)
+        if not isinstance(editor, CodeEditor):
+            return labels
+        tab_id = editor.property("tab_id")
+        if not isinstance(tab_id, str):
+            return labels
+        state = self._tab_states.get(tab_id)
+        if state is not None and state.pinned:
+            labels[3] = "Unpin Tab"
+        return labels
+
+    def _toggle_pin(self, index: int) -> None:
+        editor = self._tabs.widget(index)
+        if not isinstance(editor, CodeEditor):
+            return
+        tab_id = editor.property("tab_id")
+        if not isinstance(tab_id, str):
+            return
+        state = self._tab_states.get(tab_id)
+        if state is None:
+            return
+        state.pinned = not state.pinned
+        self._tabs.setTabText(index, self._display_title(state))
+        self._save_if_needed()
+
+    def _duplicate_tab(self, index: int) -> None:
+        editor = self._tabs.widget(index)
+        if not isinstance(editor, CodeEditor):
+            return
+        tab_id = editor.property("tab_id")
+        if not isinstance(tab_id, str):
+            return
+        state = self._tab_states.get(tab_id)
+        if state is None:
+            return
+        self._new_tab(sql=editor.toPlainText(), title=f"{state.title} Copy")
+
+    def _close_other_tabs(self, keep_index: int) -> None:
+        for i in range(self._tabs.count() - 1, -1, -1):
+            if i == keep_index:
+                continue
+            editor = self._tabs.widget(i)
+            if not isinstance(editor, CodeEditor):
+                continue
+            tab_id = editor.property("tab_id")
+            if not isinstance(tab_id, str):
+                continue
+            state = self._tab_states.get(tab_id)
+            if state is not None and state.pinned:
+                continue
+            self._close_tab(i)
+        self._save_if_needed()
+
+    def _close_all_non_pinned(self) -> None:
+        for i in range(self._tabs.count() - 1, -1, -1):
+            editor = self._tabs.widget(i)
+            if not isinstance(editor, CodeEditor):
+                continue
+            tab_id = editor.property("tab_id")
+            if not isinstance(tab_id, str):
+                continue
+            state = self._tab_states.get(tab_id)
+            if state is not None and state.pinned:
+                continue
+            if self._tabs.count() <= 1:
+                break
+            self._close_tab(i)
+        self._save_if_needed()
+
+    def _close_current_tab(self) -> None:
+        current = self._tabs.currentIndex()
+        if current >= 0:
+            self._close_tab(current)
+
+    def _switch_to_tab_number(self, tab_number: int) -> None:
+        index = tab_number - 1
+        if 0 <= index < self._tabs.count():
+            self._tabs.setCurrentIndex(index)
+
+    def _next_tab(self) -> None:
+        if self._tabs.count() < 2:
+            return
+        self._tabs.setCurrentIndex((self._tabs.currentIndex() + 1) % self._tabs.count())
+
+    def _previous_tab(self) -> None:
+        if self._tabs.count() < 2:
+            return
+        self._tabs.setCurrentIndex((self._tabs.currentIndex() - 1) % self._tabs.count())
+
+    def _reopen_last_closed_tab(self) -> None:
+        if not self._closed_tabs:
+            return
+        state = self._closed_tabs.pop()
+        if state.tab_id in self._tab_states:
+            state.tab_id = str(uuid4())
+        self._add_tab_with_state(state, set_current=True)
+        self._save_if_needed()
+
+    def _save_tab_states(self) -> None:
+        if not self._connection_id:
+            return
+        states: list[dict[str, object]] = []
+        for i in range(self._tabs.count()):
+            editor = self._tabs.widget(i)
+            if not isinstance(editor, CodeEditor):
+                continue
+            tab_id = editor.property("tab_id")
+            if not isinstance(tab_id, str):
+                continue
+            state = self._tab_states.get(tab_id)
+            if state is None:
+                continue
+            state.sql = editor.toPlainText()
+            states.append(
+                {
+                    "tab_id": state.tab_id,
+                    "title": state.title,
+                    "sql": state.sql,
+                    "pinned": state.pinned,
+                    "last_query": state.last_query,
+                }
+            )
+        settings = QSettings()
+        settings.setValue(f"tabs/{self._connection_id}", json.dumps(states))
+        active_tab_id = self._active_tab_id_or_none()
+        if active_tab_id:
+            settings.setValue(f"tabs/{self._connection_id}/active", active_tab_id)
+
+    def save_tab_states(self) -> None:
+        self._save_tab_states()
+
+    def restore_tabs(self, connection_id: str) -> None:
+        self._connection_id = connection_id
+        settings = QSettings()
+        payload = settings.value(f"tabs/{connection_id}", "")
+        active_tab_id = settings.value(f"tabs/{connection_id}/active", "")
+        restored_states: list[TabState] = []
+        if isinstance(payload, str) and payload:
+            try:
+                data = json.loads(payload)
+                if isinstance(data, list):
+                    for item in data:
+                        if not isinstance(item, dict):
+                            continue
+                        tab_id = item.get("tab_id")
+                        title = item.get("title")
+                        sql = item.get("sql", "")
+                        pinned = item.get("pinned", False)
+                        if not isinstance(tab_id, str) or not isinstance(title, str):
+                            continue
+                        if not isinstance(sql, str):
+                            sql = ""
+                        restored_states.append(
+                            TabState(
+                                tab_id=tab_id,
+                                title=title,
+                                sql=sql,
+                                pinned=bool(pinned),
+                                last_query=item.get("last_query"),
+                            )
+                        )
+            except (json.JSONDecodeError, TypeError, ValueError):
+                restored_states = []
+
+        self._restoring_tabs = True
+        try:
+            while self._tabs.count():
+                editor = self._tabs.widget(0)
+                old_tab_id = editor.property("tab_id") if editor is not None else None
+                if isinstance(old_tab_id, str):
+                    self.tab_closed.emit(old_tab_id)
+                self._tabs.removeTab(0)
+            self._tab_states.clear()
+            if restored_states:
+                for state in restored_states:
+                    self._tab_states[state.tab_id] = state
+                    self._add_tab_with_state(state, set_current=False)
+                    self._sync_query_counter(state.title)
+                if isinstance(active_tab_id, str) and active_tab_id:
+                    for i in range(self._tabs.count()):
+                        editor = self._tabs.widget(i)
+                        if editor is not None and editor.property("tab_id") == active_tab_id:
+                            self._tabs.setCurrentIndex(i)
+                            break
+                    else:
+                        self._tabs.setCurrentIndex(0)
+                else:
+                    self._tabs.setCurrentIndex(0)
+            else:
+                self._new_tab(title="[Query 1]")
+        finally:
+            self._restoring_tabs = False
+
+    def _sync_query_counter(self, title: str) -> None:
+        match = re.match(r"^\[Query\s+(\d+)\]$", title)
+        if match:
+            num = int(match.group(1))
+            self._next_query_number = max(self._next_query_number, num + 1)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if isinstance(event, QKeyEvent):
-            if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
-                if event.key() == Qt.Key.Key_Return:
-                    self._on_run()
-                    return True
+        if isinstance(event, QKeyEvent) and event.type() == QEvent.Type.KeyPress:
+            mods = event.modifiers()
+            if mods == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_Return:
+                self._on_run()
+                return True
+            if mods == (
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+            ) and event.key() == Qt.Key.Key_Return:
+                self._on_run_selection()
+                return True
         return super().eventFilter(obj, event)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
-            if event.key() == Qt.Key.Key_Return:
-                self._on_run()
-                event.accept()
-                return
-            elif event.modifiers() == (
-                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
-            ):
-                if event.key() == Qt.Key.Key_Return:
-                    self._on_run_selection()
-                    event.accept()
-                    return
+        mods = event.modifiers()
+        if mods == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_Return:
+            self._on_run()
+            event.accept()
+            return
+        if mods == (
+            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        ) and event.key() == Qt.Key.Key_Return:
+            self._on_run_selection()
+            event.accept()
+            return
         super().keyPressEvent(event)
 
     def _on_run(self) -> None:
@@ -245,11 +604,18 @@ class EditorPanel(QWidget):
             return ""
         return editor.toPlainText()
 
-    def active_tab_id(self) -> int:
+    def refresh_theme(self) -> None:
+        """Refresh runtime-painted editor colors after theme toggle."""
+        for i in range(self._tabs.count()):
+            widget = self._tabs.widget(i)
+            if isinstance(widget, CodeEditor):
+                widget.refresh_theme()
+
+    def active_tab_id(self) -> str:
         widget = self._tabs.currentWidget()
         if widget is not None:
             tab_id = widget.property("tab_id")
-            if tab_id is not None:
+            if isinstance(tab_id, str):
                 return tab_id
-        return 0
+        return ""
 

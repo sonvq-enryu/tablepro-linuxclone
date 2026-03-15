@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSplitter,
     QStatusBar,
@@ -19,8 +20,12 @@ from PySide6.QtWidgets import (
 
 from tablefree.db.manager import ConnectionManager
 from tablefree.models import QueryResult
+from tablefree.services import QueryHistoryStore
+from tablefree.theme import set_dark, set_light
 from tablefree.widgets.connection_dialog import ConnectionDialog
 from tablefree.widgets.editor import EditorPanel
+from tablefree.widgets.export_dialog import ExportDialog
+from tablefree.widgets.import_dialog import ImportDialog
 from tablefree.widgets.result_view import ResultView
 from tablefree.widgets.sidebar import Sidebar
 from tablefree.workers.query_worker import QueryWorker
@@ -36,7 +41,10 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self._is_dark = True  # start with dark theme
         self._conn_manager = ConnectionManager()
+        self._history = QueryHistoryStore()
+        self._history.cleanup()
         self._active_driver = None
+        self._active_connection_id: str | None = None
         self._current_query = ""
         self._setup_window()
         self._setup_menu_bar()
@@ -82,6 +90,18 @@ class MainWindow(QMainWindow):
         new_query.setShortcut("Ctrl+N")
         new_query.setStatusTip("Open a new query tab")
         file_menu.addAction(new_query)
+
+        export_action = QAction("Export Data...", self)
+        export_action.setShortcut("Ctrl+Shift+E")
+        export_action.setStatusTip("Export current result data")
+        export_action.triggered.connect(self._on_export)
+        file_menu.addAction(export_action)
+
+        import_action = QAction("Import SQL...", self)
+        import_action.setShortcut("Ctrl+Shift+I")
+        import_action.setStatusTip("Import SQL file into active connection")
+        import_action.triggered.connect(self._on_import)
+        file_menu.addAction(import_action)
 
         file_menu.addSeparator()
 
@@ -140,6 +160,12 @@ class MainWindow(QMainWindow):
         toggle_theme.triggered.connect(self._toggle_theme)
         view_menu.addAction(toggle_theme)
 
+        show_history = QAction("Show Query History", self)
+        show_history.setShortcut("Ctrl+Y")
+        show_history.setStatusTip("Switch to query history tab")
+        show_history.triggered.connect(self._show_query_history)
+        view_menu.addAction(show_history)
+
         # Help
         help_menu = menu_bar.addMenu("&Help")
         about_action = QAction("About TableFree", self)
@@ -180,11 +206,13 @@ class MainWindow(QMainWindow):
 
         tb_layout.addWidget(_make_sep())
 
-        import_btn = _make_btn("Import")
-        tb_layout.addWidget(import_btn)
+        self._import_btn = _make_btn("Import", "Import SQL file (Ctrl+Shift+I)")
+        self._import_btn.clicked.connect(self._on_import)
+        tb_layout.addWidget(self._import_btn)
 
-        export_btn = _make_btn("Export")
-        tb_layout.addWidget(export_btn)
+        self._export_btn = _make_btn("Export", "Export current data (Ctrl+Shift+E)")
+        self._export_btn.clicked.connect(self._on_export)
+        tb_layout.addWidget(self._export_btn)
 
         tb_layout.addWidget(_make_sep())
 
@@ -211,11 +239,15 @@ class MainWindow(QMainWindow):
         self._editor = EditorPanel()
         self._editor.query_submitted.connect(self._execute_query)
 
-        self._result_view = ResultView()
+        self._result_view = ResultView(history_store=self._history)
         self._result_view.setMinimumHeight(100)
+        self._result_view.export_requested.connect(self._on_export)
+        self._result_view.query_load_requested.connect(self._on_history_load_requested)
+        self._result_view.query_run_requested.connect(self._execute_query)
 
         # Wire EditorPanel tab changes to ResultView change trackers
         self._editor.tab_changed.connect(self._result_view.switch_tab)
+        self._editor.tab_closed.connect(self._result_view.remove_tab_state)
         self._result_view.switch_tab(self._editor.active_tab_id())
 
         # Wire global toolbar buttons to ResultView actions
@@ -275,6 +307,11 @@ class MainWindow(QMainWindow):
         self._apply_theme()
 
     def _apply_theme(self) -> None:
+        if self._is_dark:
+            set_dark()
+        else:
+            set_light()
+
         theme_file = "dark.qss" if self._is_dark else "light.qss"
         qss_path = _RESOURCES / "styles" / theme_file
 
@@ -284,9 +321,21 @@ class MainWindow(QMainWindow):
         else:
             self.setStyleSheet("")
 
+        self._refresh_theme_aware_widgets()
+
+    def _refresh_theme_aware_widgets(self) -> None:
+        if hasattr(self._editor, "refresh_theme"):
+            self._editor.refresh_theme()
+        if hasattr(self._result_view, "refresh_theme"):
+            self._result_view.refresh_theme()
+        if hasattr(self._sidebar, "refresh_theme"):
+            self._sidebar.refresh_theme()
+
     def _open_connection_dialog(self) -> None:
         dialog = ConnectionDialog(self._conn_manager, self)
         if dialog.exec():
+            if self._active_connection_id:
+                self._editor.save_tab_states()
             self._active_driver = dialog.active_driver
             if self._active_driver:
                 name = self._active_driver.config.name or "Unnamed"
@@ -297,6 +346,18 @@ class MainWindow(QMainWindow):
                 self._sidebar.set_driver(self._active_driver)
                 self._editor.set_driver(self._active_driver)
                 self._result_view.set_driver(self._active_driver)
+                self._active_connection_id = self._make_connection_id()
+                if self._active_connection_id:
+                    self._editor.restore_tabs(self._active_connection_id)
+                    self._result_view.switch_tab(self._editor.active_tab_id())
+
+    def _make_connection_id(self) -> str:
+        if not self._active_driver or not self._active_driver.config:
+            return ""
+        cfg = self._active_driver.config
+        return (
+            f"{cfg.driver_type.value}:{cfg.username}@{cfg.host}:{cfg.port}/{cfg.database}"
+        )
 
     def _on_undo(self) -> None:
         """Handle undo in result view."""
@@ -306,6 +367,61 @@ class MainWindow(QMainWindow):
     def _on_redo(self) -> None:
         """Handle redo in result view."""
         self._result_view.setFocus()
+
+    def _on_export(self) -> None:
+        result = self._result_view.current_result
+        if result is None:
+            QMessageBox.information(
+                self, "Export", "No data to export. Run a query first."
+            )
+            return
+
+        dialog = ExportDialog(
+            result.columns,
+            result.rows,
+            column_types=result.column_types,
+            table_name=self._result_view.current_table or "exported_table",
+            parent=self,
+        )
+        dialog.exec()
+
+    def _on_import(self) -> None:
+        if not self._active_driver:
+            QMessageBox.information(self, "Import", "Connect to a database first.")
+            return
+
+        dialog = ImportDialog(self._active_driver, self)
+        if dialog.exec():
+            self._sidebar.set_driver(self._active_driver)
+
+    def _show_query_history(self) -> None:
+        self._result_view.show_history()
+
+    def _on_history_load_requested(self, sql: str) -> None:
+        editor = self._editor.current_editor()
+        if editor is None:
+            return
+        editor.setPlainText(sql)
+
+    def _record_query_history(
+        self,
+        *,
+        status: str,
+        duration_ms: float,
+        rows_affected: int,
+        error_message: str | None = None,
+    ) -> None:
+        if not self._active_driver:
+            return
+        self._history.record(
+            query_text=self._current_query,
+            connection_name=self._active_driver.config.name or "Unnamed",
+            duration_ms=duration_ms,
+            status=status,
+            error_message=error_message,
+            rows_affected=rows_affected,
+        )
+        self._result_view.refresh_history()
 
     def _execute_query(self, sql: str) -> None:
         if not self._active_driver:
@@ -350,11 +466,13 @@ class MainWindow(QMainWindow):
     def _on_query_finished(self, result: object) -> None:
         elapsed = (time.perf_counter() - self._query_start_time) * 1000
         duration_ms = round(elapsed, 1)
+        rows_affected = 0
 
         if isinstance(result, list) and result:
             if isinstance(result[0], dict):
                 columns = list(result[0].keys())
                 data = [list(r.values()) for r in result]
+                rows_affected = len(data)
                 col_types = self._infer_types(result, columns)
                 query_result = QueryResult(
                     columns=columns,
@@ -366,6 +484,7 @@ class MainWindow(QMainWindow):
                 )
                 self._result_view.display_results(query_result)
             else:
+                rows_affected = len(result)
                 self._result_view.append_message(
                     f"Query executed successfully ({duration_ms} ms, {len(result)} rows returned)"
                 )
@@ -382,6 +501,11 @@ class MainWindow(QMainWindow):
             )
             self._editor._info_label.setText(f"{duration_ms} ms")
 
+        self._record_query_history(
+            status="success",
+            duration_ms=duration_ms,
+            rows_affected=rows_affected,
+        )
         self._editor.set_query_complete()
 
     def _on_query_error(self, error: Exception) -> None:
@@ -389,6 +513,12 @@ class MainWindow(QMainWindow):
         duration_ms = round(elapsed, 1)
         self._result_view.display_error(str(error))
         self._editor._info_label.setText(f"Error | {duration_ms} ms")
+        self._record_query_history(
+            status="error",
+            duration_ms=duration_ms,
+            rows_affected=0,
+            error_message=str(error),
+        )
         self._editor.set_query_complete()
 
     def _on_table_selected(self, schema: str, table: str) -> None:
@@ -405,6 +535,7 @@ class MainWindow(QMainWindow):
             self._result_view.show_structure(self._active_driver, table, schema)
 
     def closeEvent(self, event) -> None:
+        self._editor.save_tab_states()
         self._sidebar.clear()
         self._conn_manager.close_all()
         super().closeEvent(event)

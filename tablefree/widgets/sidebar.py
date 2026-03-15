@@ -1,7 +1,7 @@
 """Sidebar widget — Database navigator with tree structure."""
 
 from PySide6.QtCore import Qt, Signal, QThreadPool, QObject, QRect
-from PySide6.QtGui import QAction, QPainter, QColor, QFont, QPen, QBrush, QFontMetrics
+from PySide6.QtGui import QAction, QPainter, QFont, QPen, QBrush, QFontMetrics
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from tablefree.db.driver import DatabaseDriver
+from tablefree.theme import current
 from tablefree.workers.query_worker import QueryWorker
 
 
@@ -47,15 +48,16 @@ class SidebarDelegate(QStyledItemDelegate):
     """Custom delegate to render tree items with right-aligned data-type badges."""
 
     def paint(self, painter: QPainter, option, index) -> None:
+        colors = current()
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Highlight background for selected items
         if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, QColor("#1e293b"))  # slate-800
-            text_pen = QPen(QColor("#ffffff"))
+            painter.fillRect(option.rect, colors.selected_bg)
+            text_pen = QPen(colors.selected_text)
         else:
-            text_pen = QPen(QColor("#e2e8f0"))  # slate-200
+            text_pen = QPen(colors.item_text)
 
         data = index.data(Qt.ItemDataRole.UserRole)
         rect = option.rect
@@ -90,11 +92,11 @@ class SidebarDelegate(QStyledItemDelegate):
                 badge_rect = QRect(badge_x, badge_y, badge_width, badge_height)
                 
                 painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QBrush(QColor("#334155")))  # slate-700
+                painter.setBrush(QBrush(colors.badge_bg))
                 painter.drawRoundedRect(badge_rect, 4, 4)
                 
                 # Draw badge text
-                painter.setPen(QPen(QColor("#93c5fd")))  # blue-300
+                painter.setPen(QPen(colors.badge_text))
                 painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, data_type)
                 
                 # Draw column name (restore font and pen for primary text)
@@ -507,3 +509,7 @@ class Sidebar(QWidget):
     def _on_refresh_clicked(self) -> None:
         if self._driver:
             self.set_driver(self._driver)
+
+    def refresh_theme(self) -> None:
+        """Force repaint for custom delegate-drawn tree rows."""
+        self._tree.viewport().update()

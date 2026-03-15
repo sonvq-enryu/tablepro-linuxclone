@@ -3,11 +3,12 @@
 import pytest
 from unittest.mock import patch
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
-# Need a QCoreApplication to use QSettings
-if not QCoreApplication.instance():
-    QCoreApplication(["--platform", "offscreen"])
+# Need a QApplication for Qt-based tests.
+APP = QApplication.instance()
+if APP is None:
+    APP = QApplication(["--platform", "offscreen"])
 
 @pytest.fixture(autouse=True)
 def mock_keyring():
