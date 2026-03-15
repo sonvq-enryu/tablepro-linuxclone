@@ -1060,6 +1060,33 @@ QSpinBox#port-input:focus {
     border-color: #89b4fa;
 }
 
+QDialog#connection-dialog QSpinBox::up-button,
+QDialog#connection-dialog QSpinBox::down-button {
+    background-color: #252738;
+    border: none;
+    border-left: 1px solid #313244;
+    width: 20px;
+}
+
+QDialog#connection-dialog QSpinBox::up-button:hover,
+QDialog#connection-dialog QSpinBox::down-button:hover {
+    background-color: #313244;
+}
+
+QDialog#connection-dialog QSpinBox::up-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 4px solid #a6adc8;
+}
+
+QDialog#connection-dialog QSpinBox::down-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid #a6adc8;
+}
+
 QLineEdit#database-input,
 QLineEdit#username-input {
     background-color: #181825;
@@ -1118,7 +1145,13 @@ QWidget#advanced-panel {
     background-color: #181825;
     border: 1px solid #313244;
     border-radius: 8px;
-    padding: 12px;
+    padding: 10px;
+}
+
+QWidget#advanced-section-card {
+    background-color: #1e1e2e;
+    border: 1px solid #313244;
+    border-radius: 7px;
 }
 
 QLabel#advanced-section-title {
@@ -1130,6 +1163,13 @@ QLabel#advanced-section-title {
     background: transparent;
 }
 
+QLabel#advanced-section-subtitle {
+    color: #7f849c;
+    font-size: 12px;
+    background: transparent;
+    padding-bottom: 2px;
+}
+
 QFrame#advanced-separator {
     background-color: #313244;
     border: none;
@@ -1139,41 +1179,19 @@ QFrame#advanced-separator {
 QWidget#ssh-fields-container {
     background-color: transparent;
     border-left: 2px solid #313244;
+    margin-left: 6px;
+    padding-left: 2px;
 }
 
-/* Checkboxes */
-QCheckBox {
+QWidget#ssh-fields-container[active="true"] {
+    border-left: 2px solid #89b4fa;
+}
+
+QWidget#advanced-suboption-row {
     background-color: transparent;
-    color: #cdd6f4;
-    font-size: 13px;
-    spacing: 8px;
 }
 
-QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
-    border: 1px solid #45475a;
-    border-radius: 4px;
-    background-color: #181825;
-}
-
-QCheckBox::indicator:checked {
-    background-color: #89b4fa;
-    border-color: #89b4fa;
-}
-
-QCheckBox::indicator:hover {
-    border-color: #89b4fa;
-}
-
-QCheckBox:disabled {
-    color: #585b70;
-}
-
-/* SSH Inputs */
-QLineEdit#ssh-host-input,
-QLineEdit#ssh-user-input,
-QLineEdit#ssh-key-input {
+QComboBox#ssh-profile-combo {
     background-color: #1e1e2e;
     color: #cdd6f4;
     border: 1px solid #313244;
@@ -1182,22 +1200,17 @@ QLineEdit#ssh-key-input {
     font-size: 12px;
 }
 
-QLineEdit#ssh-host-input:focus,
-QLineEdit#ssh-user-input:focus,
-QLineEdit#ssh-key-input:focus {
-    border-color: #89b4fa;
+QComboBox#ssh-profile-combo:hover {
+    border-color: #45475a;
 }
 
-QSpinBox#ssh-port-input {
-    background-color: #1e1e2e;
-    color: #cdd6f4;
+QWidget#ssh-summary-widget {
+    background-color: #252738;
     border: 1px solid #313244;
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 12px;
+    border-radius: 6px;
 }
 
-QPushButton#ssh-key-browse-btn {
+QPushButton#ssh-manage-btn {
     background-color: #313244;
     color: #a6adc8;
     border: 1px solid #45475a;
@@ -1206,9 +1219,81 @@ QPushButton#ssh-key-browse-btn {
     font-size: 11px;
 }
 
-QPushButton#ssh-key-browse-btn:hover {
+QPushButton#ssh-manage-btn:hover {
     background-color: #45475a;
     color: #cdd6f4;
+}
+
+QWidget#auth-method-group {
+    background-color: #252738;
+    border: 1px solid #313244;
+    border-radius: 6px;
+}
+
+/* Checkboxes */
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox {
+    background-color: transparent;
+    color: #cdd6f4;
+    font-size: 13px;
+    spacing: 8px;
+}
+
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    background-color: #181825;
+}
+
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox::indicator:checked {
+    background-color: #89b4fa;
+    border-color: #89b4fa;
+}
+
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox::indicator:hover {
+    border-color: #89b4fa;
+}
+
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox:disabled {
+    color: #585b70;
+}
+
+/* SSH Profile Dialog */
+QDialog#ssh-profile-dialog {
+    background-color: #1e1e2e;
+    min-width: 820px;
+    min-height: 520px;
+}
+
+QListWidget#ssh-profile-list {
+    background-color: #181825;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: 6px;
+}
+
+QWidget#ssh-profile-form {
+    background-color: #1e1e2e;
+    border-radius: 8px;
+}
+
+QDialog#ssh-profile-dialog QLineEdit,
+QDialog#ssh-profile-dialog QSpinBox,
+QDialog#ssh-profile-dialog QComboBox {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+    margin: 2px 0;
+}
+
+QDialog#ssh-profile-dialog QLineEdit:focus,
+QDialog#ssh-profile-dialog QSpinBox:focus,
+QDialog#ssh-profile-dialog QComboBox:focus {
+    border-color: #89b4fa;
 }
 
 /* Action Buttons */
@@ -1393,6 +1478,15 @@ QWidget#connection-form-panel {
     border-radius: 8px;
 }
 
+QScrollArea#connection-form-scroll {
+    background-color: #1e1e2e;
+    border: none;
+}
+
+QWidget#connection-form-scroll-content {
+    background-color: #1e1e2e;
+}
+
 QDialog QPushButton {
     background-color: transparent;
     color: #a6adc8;
@@ -1459,6 +1553,10 @@ QPushButton#password-toggle-btn {
 QPushButton#password-toggle-btn:hover {
     background-color: #45475a;
     color: #cdd6f4;
+}
+
+QWidget#password-row {
+    background-color: transparent;
 }
 
 /* Cancel Button */

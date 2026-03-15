@@ -662,15 +662,80 @@ class ResultView(QWidget):
                 # Show success
                 self.append_message("Changes committed successfully.")
 
-                # Refresh results (would need original query to re-execute)
-                if self._current_result:
-                    self._display_page(self._current_page)
+                # Reload from database so the grid reflects persisted values.
+                self._reload_results_after_commit()
 
                 self._update_pending_label()
                 self._update_edit_toolbar_visibility()
 
             except Exception as e:
                 self.display_error(f"Failed to commit changes: {e}")
+
+    def _reload_results_after_commit(self) -> None:
+        """Re-execute the active query context after commit."""
+        if not self._driver or not self._current_result:
+            return
+
+        where_clause, where_params = self._filter_panel.build_where_clause()
+        driver_type = type(self._driver).__name__.lower()
+        offset = self._current_page * self._page_size if self._page_size > 0 else 0
+
+        sql = ""
+        params: tuple = ()
+        schema = self._current_schema or "public"
+        table = self._current_table
+
+        if self._query_mode == "table" and table:
+            if "mysql" in driver_type:
+                quoted_schema = f"`{schema}`"
+                quoted_table = f"`{table}`"
+            else:
+                quoted_schema = f'"{schema}"'
+                quoted_table = f'"{table}"'
+
+            sql = f"SELECT * FROM {quoted_schema}.{quoted_table}"
+            if where_clause:
+                sql += f" WHERE {where_clause}"
+                params = where_params
+            if self._page_size > 0:
+                sql += f" LIMIT {self._page_size} OFFSET {offset}"
+        else:
+            if where_clause:
+                sql = self._build_filtered_query(where_clause) or ""
+                params = where_params
+            else:
+                sql = self._original_query.strip().rstrip(";") if self._original_query else ""
+
+        if not sql:
+            return
+
+        result = self._driver.execute(sql, params)
+        if isinstance(result, list) and result and isinstance(result[0], dict):
+            columns = list(result[0].keys())
+            data = [list(r.values()) for r in result]
+            col_types = self._infer_types(result, columns)
+            query_result = QueryResult(
+                columns=columns,
+                rows=data,
+                column_types=col_types,
+                row_count=len(data),
+                duration_ms=0,
+                query=sql,
+            )
+            self.display_results(query_result)
+            return
+
+        if isinstance(result, list) and not result:
+            # Preserve column metadata when query returns no rows.
+            query_result = QueryResult(
+                columns=list(self._current_result.columns),
+                rows=[],
+                column_types=list(self._current_result.column_types),
+                row_count=0,
+                duration_ms=0,
+                query=sql,
+            )
+            self.display_results(query_result)
 
     def _update_pending_label(self) -> None:
         """Update the pending changes label."""

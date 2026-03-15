@@ -122,6 +122,22 @@ def test_generate_sql_row_delete():
     assert "users" in sql
 
 
+def test_generate_sql_update_includes_where_params_for_pk():
+    tracker = ChangeTracker()
+    tracker.set_original_value(0, 0, 1)
+    tracker.set_original_value(0, 1, "Old Name")
+    tracker.record_edit(0, 1, "Old Name", "New Name")
+
+    sql_statements = tracker.generate_sql("users", ["id", "name"], ["id"])
+    assert len(sql_statements) == 1
+
+    sql, params = sql_statements[0]
+    assert "UPDATE" in sql
+    assert 'WHERE "id" = %s' in sql
+    # SET "name" + WHERE "id" must both be present in params
+    assert params == ("New Name", 1)
+
+
 def test_max_undo_levels():
     tracker = ChangeTracker()
     for i in range(150):

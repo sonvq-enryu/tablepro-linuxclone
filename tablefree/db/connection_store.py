@@ -42,6 +42,12 @@ class ConnectionStore:
 
         # Extract password to store securely
         password = profile.pop("password", None)
+        # Old inline SSH fields are deprecated in favor of ssh_profile_id.
+        profile.pop("ssh_enabled", None)
+        profile.pop("ssh_host", None)
+        profile.pop("ssh_port", None)
+        profile.pop("ssh_user", None)
+        profile.pop("ssh_key", None)
 
         self._settings.beginGroup(self._GROUP)
         self._settings.setValue(connection_id, json.dumps(profile))

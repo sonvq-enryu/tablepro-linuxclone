@@ -117,3 +117,38 @@ def test_load_all_returns_multiple() -> None:
     names = [p.get("name") for p in profiles]
     assert "A DB" in names
     assert "B DB" in names
+
+
+def test_save_with_ssh_profile_id() -> None:
+    store = ConnectionStore()
+    profile = {
+        "name": "SSH Linked DB",
+        "driver_type": "postgresql",
+        "host": "localhost",
+        "port": 5432,
+        "database": "db",
+        "username": "user",
+        "password": "secret",
+        "ssh_profile_id": "ssh-prod-1",
+    }
+    conn_id = store.save(profile.copy())
+    loaded = store.load(conn_id)
+    assert loaded is not None
+    assert loaded.get("ssh_profile_id") == "ssh-prod-1"
+
+
+def test_to_config_ignores_ssh_profile_id() -> None:
+    store = ConnectionStore()
+    profile = {
+        "name": "Config DB",
+        "driver_type": "mysql",
+        "host": "localhost",
+        "port": 3306,
+        "database": "db",
+        "username": "user",
+        "password": "secret",
+        "ssh_profile_id": "ssh-staging",
+    }
+    config = store.to_config(profile)
+    assert config.name == "Config DB"
+    assert config.driver_type == DriverType.MYSQL

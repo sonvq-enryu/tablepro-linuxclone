@@ -6,6 +6,7 @@ from tablefree.widgets.history_panel import HistoryPanel
 from tablefree.widgets.import_dialog import ImportDialog
 from tablefree.widgets.result_view import ResultView
 from tablefree.widgets.sidebar import Sidebar
+from tablefree.widgets.ssh_profile_dialog import SSHProfileDialog
 from tablefree.widgets.sql_preview_dialog import SQLPreviewDialog
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     "ImportDialog",
     "ResultView",
     "Sidebar",
+    "SSHProfileDialog",
     "SQLPreviewDialog",
 ]

@@ -228,16 +228,17 @@ class ChangeTracker:
                 if pk_col in columns:
                     pk_idx = columns.index(pk_col)
                     where_clauses.append(f'"{pk_col}" = %s')
-                    # Use original value from edits or need to track row data
-                    # For now, we'll need the original PK value
-                    # This requires storing original row data
-                    # For simplicity, we track the first edit's old_value as a fallback
+                    params.append(self.get_original_value(row_idx, pk_idx))
 
             # If no PK, use all columns
             if not where_clauses:
                 for i, col in enumerate(columns):
                     where_clauses.append(f'"{col}" = %s')
-                    # We'd need original values - this is a simplification
+                    params.append(self.get_original_value(row_idx, i))
+
+            # Safety: skip invalid UPDATE statements without predicates.
+            if not where_clauses:
+                continue
 
             sql = f'UPDATE "{table}" SET {", ".join(set_clauses)} WHERE {" AND ".join(where_clauses)}'
             result.append((sql, tuple(params)))

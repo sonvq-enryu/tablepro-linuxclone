@@ -62,6 +62,7 @@ class SidebarDelegate(QStyledItemDelegate):
         "loading": "◌",
         "error": "!",
     }
+    _MIN_COLUMN_NAME_WIDTH = 120
 
     def _draw_badges(self, painter: QPainter, rect: QRect, badges: list[tuple[str, object, object]], base_font: QFont) -> int:
         """Draw right-aligned rounded badges and return consumed width."""
@@ -90,6 +91,30 @@ class SidebarDelegate(QStyledItemDelegate):
 
         painter.setFont(base_font)
         return consumed
+
+    def _column_badges(
+        self, data: dict, is_pk: bool, available_width: int, base_font: QFont
+    ) -> list[tuple[str, object, object]]:
+        """Build metadata badges while preserving room for the column name."""
+        colors = current()
+        badges: list[tuple[str, object, object]] = []
+        if is_pk:
+            badges.append(("PK", colors.sidebar_pk, colors.base))
+
+        data_type = str(data.get("data_type", "unknown"))
+        if len(data_type) > 20:
+            data_type = f"{data_type[:17]}..."
+
+        # Keep metadata secondary: only render type when row has enough room.
+        badge_font = QFont(base_font)
+        badge_font.setPointSize(max(8, base_font.pointSize() - 2))
+        fm = QFontMetrics(badge_font)
+        type_width = min(fm.horizontalAdvance(data_type) + 12, 100)
+        required_for_name = self._MIN_COLUMN_NAME_WIDTH + type_width + 16
+        if available_width >= required_for_name:
+            badges.append((data_type, colors.badge_bg, colors.badge_text))
+
+        return badges
 
     def _node_icon_color(self, node_type: str, is_pk: bool):
         colors = current()
@@ -152,14 +177,8 @@ class SidebarDelegate(QStyledItemDelegate):
 
         badges: list[tuple[str, object, object]] = []
         if node_type == "column":
-            data_type = str(data.get("data_type", "unknown"))
-            if len(data_type) > 24:
-                data_type = f"{data_type[:21]}..."
-            if data.get("is_nullable", False):
-                badges.append(("NULL", colors.overlay, colors.subtext))
-            if is_pk:
-                badges.append(("PK", colors.sidebar_pk, colors.base))
-            badges.append((data_type, colors.badge_bg, colors.badge_text))
+            available_width = rect.width() - (x - rect.left()) - 8
+            badges = self._column_badges(data, is_pk, available_width, font)
 
         consumed = self._draw_badges(painter, rect, badges, font)
         text_rect = QRect(x, rect.top(), max(20, rect.width() - (x - rect.left()) - consumed - 4), rect.height())
