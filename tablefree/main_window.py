@@ -241,7 +241,9 @@ class MainWindow(QMainWindow):
             sep.setFixedHeight(20)
             return sep
 
-        new_conn_btn = _make_btn("+ New Connection", "Open connection dialog (Ctrl+Shift+N)")
+        new_conn_btn = _make_btn(
+            "+ New Connection", "Open connection dialog (Ctrl+Shift+N)"
+        )
         new_conn_btn.clicked.connect(self._open_connection_dialog)
         tb_layout.addWidget(new_conn_btn)
 
@@ -263,9 +265,11 @@ class MainWindow(QMainWindow):
 
         self._commit_btn = _make_btn("Commit", "Commit changes (Ctrl+S)")
         self._commit_btn.setShortcut("Ctrl+S")
+        self._commit_btn.setEnabled(False)
         tb_layout.addWidget(self._commit_btn)
 
         self._rollback_btn = _make_btn("Rollback", "Discard changes")
+        self._rollback_btn.setEnabled(False)
         tb_layout.addWidget(self._rollback_btn)
 
         tb_layout.addStretch()
@@ -299,6 +303,10 @@ class MainWindow(QMainWindow):
         # Wire global toolbar buttons to ResultView actions
         self._commit_btn.clicked.connect(self._result_view._on_commit)
         self._rollback_btn.clicked.connect(self._result_view._on_discard)
+        self._result_view.pending_changes_state_changed.connect(
+            self._on_pending_changes_state_changed
+        )
+        self._on_pending_changes_state_changed(False, 0)
 
         self._v_splitter = QSplitter(Qt.Orientation.Vertical)
         self._v_splitter.addWidget(self._editor)
@@ -449,12 +457,19 @@ class MainWindow(QMainWindow):
         self._quick_connect_request_id += 1
         request_id = self._quick_connect_request_id
 
-        worker = QueryWorker(self._conn_manager.create_connection, connection_id, config)
+        worker = QueryWorker(
+            self._conn_manager.create_connection, connection_id, config
+        )
         done_helper = _MainThreadSlotHelper(
-            self, self._on_sidebar_connect_finished, request_id, connection_id=connection_id
+            self,
+            self._on_sidebar_connect_finished,
+            request_id,
+            connection_id=connection_id,
         )
         worker.signals.finished.connect(done_helper.on_finished)
-        err_helper = _MainThreadSlotHelper(self, self._on_sidebar_connect_error, request_id)
+        err_helper = _MainThreadSlotHelper(
+            self, self._on_sidebar_connect_error, request_id
+        )
         worker.signals.error.connect(err_helper.on_error)
         from PySide6.QtCore import QThreadPool
 
@@ -484,9 +499,7 @@ class MainWindow(QMainWindow):
         if not self._active_driver or not self._active_driver.config:
             return ""
         cfg = self._active_driver.config
-        return (
-            f"{cfg.driver_type.value}:{cfg.username}@{cfg.host}:{cfg.port}/{cfg.database}"
-        )
+        return f"{cfg.driver_type.value}:{cfg.username}@{cfg.host}:{cfg.port}/{cfg.database}"
 
     def _on_undo(self) -> None:
         """Handle undo in result view."""
@@ -526,6 +539,10 @@ class MainWindow(QMainWindow):
     def _show_query_history(self) -> None:
         self._result_view.show_history()
 
+    def _on_pending_changes_state_changed(self, has_pending: bool, _count: int) -> None:
+        self._commit_btn.setEnabled(has_pending)
+        self._rollback_btn.setEnabled(has_pending)
+
     def _on_history_load_requested(self, sql: str) -> None:
         editor = self._editor.current_editor()
         if editor is None:
@@ -560,6 +577,45 @@ class MainWindow(QMainWindow):
             self._result_view.set_loading(False)
             self._editor.set_query_complete()
             return
+
+        pending_count = self._result_view.pending_change_count()
+        if pending_count > 0:
+            message_box = QMessageBox(self)
+            message_box.setWindowTitle("Pending Changes")
+            message_box.setIcon(QMessageBox.Icon.Warning)
+            message_box.setText(
+                f"You have {pending_count} pending change{'s' if pending_count != 1 else ''}."
+            )
+            message_box.setInformativeText(
+                "Commit or discard edits before running another SQL command."
+            )
+            commit_btn = message_box.addButton(
+                "Commit", QMessageBox.ButtonRole.AcceptRole
+            )
+            discard_btn = message_box.addButton(
+                "Discard", QMessageBox.ButtonRole.DestructiveRole
+            )
+            cancel_btn = message_box.addButton(QMessageBox.StandardButton.Cancel)
+            message_box.setDefaultButton(commit_btn)
+            message_box.exec()
+
+            clicked = message_box.clickedButton()
+            if clicked == commit_btn:
+                committed = self._result_view._on_commit()
+                if not committed or self._result_view.has_pending_changes():
+                    self._result_view.set_loading(False)
+                    self._editor.set_query_complete()
+                    return
+            elif clicked == discard_btn:
+                discarded = self._result_view.discard_pending_changes_without_prompt()
+                if not discarded or self._result_view.has_pending_changes():
+                    self._result_view.set_loading(False)
+                    self._editor.set_query_complete()
+                    return
+            elif clicked == cancel_btn:
+                self._result_view.set_loading(False)
+                self._editor.set_query_complete()
+                return
 
         self._current_query = sql  # Store for result view
         self._editor._info_label.setText("Executing...")

@@ -43,6 +43,7 @@ class ResultView(QWidget):
     export_requested = Signal()
     query_load_requested = Signal(str)
     query_run_requested = Signal(str)
+    pending_changes_state_changed = Signal(bool, int)
 
     NULL_ROLE = Qt.ItemDataRole.UserRole + 1
     ORIGINAL_VALUE_ROLE = Qt.ItemDataRole.UserRole + 2
@@ -67,11 +68,11 @@ class ResultView(QWidget):
         self._current_schema: str = ""
         self._primary_key_cols: list[str] = []
         self._history_store = history_store
-        
+
         self._active_tab_id: str | None = None
         self._change_trackers: dict[str, ChangeTracker] = {}
         self._original_row_data_per_tab: dict[str, dict[int, list[Any]]] = {}
-        
+
         self._original_query: str = ""
         self._query_mode: str = "query"
         self._filter_state_per_tab: dict[str, dict] = {}
@@ -96,13 +97,17 @@ class ResultView(QWidget):
     @property
     def _change_tracker(self) -> ChangeTracker:
         """Get the active change tracker for the current tab."""
-        tab_id = self._active_tab_id if self._active_tab_id is not None else "__default__"
+        tab_id = (
+            self._active_tab_id if self._active_tab_id is not None else "__default__"
+        )
         return self._change_trackers.setdefault(tab_id, ChangeTracker())
 
     @property
     def _original_row_data(self) -> dict[int, list[Any]]:
         """Get the active original row data for the current tab."""
-        tab_id = self._active_tab_id if self._active_tab_id is not None else "__default__"
+        tab_id = (
+            self._active_tab_id if self._active_tab_id is not None else "__default__"
+        )
         return self._original_row_data_per_tab.setdefault(tab_id, {})
 
     def switch_tab(self, tab_id: str) -> None:
@@ -121,6 +126,14 @@ class ResultView(QWidget):
         self._filter_state_per_tab.pop(tab_id, None)
         if self._active_tab_id == tab_id:
             self._active_tab_id = None
+
+    def pending_change_count(self) -> int:
+        """Return pending change count for the active tab."""
+        return len(self._change_tracker.pending_changes)
+
+    def has_pending_changes(self) -> bool:
+        """Return whether the active tab has uncommitted edits."""
+        return self._change_tracker.has_changes
 
     def eventFilter(self, obj, event):
         if obj == self._table and event.type() == event.Type.KeyPress:
@@ -249,8 +262,12 @@ class ResultView(QWidget):
         self._history_panel = None
         if self._history_store is not None:
             self._history_panel = HistoryPanel(self._history_store)
-            self._history_panel.query_load_requested.connect(self.query_load_requested.emit)
-            self._history_panel.query_run_requested.connect(self.query_run_requested.emit)
+            self._history_panel.query_load_requested.connect(
+                self.query_load_requested.emit
+            )
+            self._history_panel.query_run_requested.connect(
+                self.query_run_requested.emit
+            )
             hist_layout.addWidget(self._history_panel)
         self._tabs.addTab(history_widget, "History")
 
@@ -336,12 +353,14 @@ class ResultView(QWidget):
         self._discard_btn = QPushButton("Discard")
         self._discard_btn.setObjectName("edit-btn")
         self._discard_btn.clicked.connect(self._on_discard)
+        self._discard_btn.setEnabled(False)
         layout.addWidget(self._discard_btn)
 
         self._commit_btn = QPushButton("Commit")
         self._commit_btn.setObjectName("commit-btn")
         self._commit_btn.setShortcut(QKeySequence("Ctrl+S"))
         self._commit_btn.clicked.connect(self._on_commit)
+        self._commit_btn.setEnabled(False)
         layout.addWidget(self._commit_btn)
 
         layout.addStretch()
@@ -406,7 +425,9 @@ class ResultView(QWidget):
                     f"WHERE {where_clause} LIMIT {self._page_size} OFFSET {offset}"
                 )
             else:
-                sql = f"SELECT * FROM {quoted_schema}.{quoted_table} WHERE {where_clause}"
+                sql = (
+                    f"SELECT * FROM {quoted_schema}.{quoted_table} WHERE {where_clause}"
+                )
         else:
             sql = self._build_filtered_query(where_clause) or ""
             if not sql:
@@ -635,30 +656,37 @@ class ResultView(QWidget):
         if dialog.exec():
             self._on_commit()
 
-    def _on_discard(self) -> None:
-        """Discard all pending changes."""
+    def _discard_pending_changes(self, *, confirm: bool) -> bool:
+        """Discard active-tab pending changes, optionally with confirmation."""
         if not self._change_tracker.has_changes:
-            return
+            return True
 
-        reply = QMessageBox.question(
-            self,
-            "Discard Changes",
-            "Are you sure you want to discard all pending changes?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
+        if confirm:
+            reply = QMessageBox.question(
+                self,
+                "Discard Changes",
+                "Are you sure you want to discard all pending changes?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return False
 
-        if reply == QMessageBox.StandardButton.Yes:
-            self._change_tracker.discard()
-            # Reload original data
-            if self._current_result:
-                self._display_page(self._current_page)
-            self._update_pending_label()
-            self._update_edit_toolbar_visibility()
+        self._change_tracker.discard()
+        # Reload original data
+        if self._current_result:
+            self._display_page(self._current_page)
+        self._update_pending_label()
+        self._update_edit_toolbar_visibility()
+        return True
 
-    def _on_commit(self) -> None:
+    def _on_discard(self) -> None:
+        """Discard all pending changes after user confirmation."""
+        self._discard_pending_changes(confirm=True)
+
+    def _on_commit(self) -> bool:
         """Commit changes to database."""
         if not self._change_tracker.has_changes:
-            return
+            return True
 
         if not self._primary_key_cols:
             reply = QMessageBox.warning(
@@ -668,7 +696,7 @@ class ResultView(QWidget):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply != QMessageBox.StandardButton.Yes:
-                return
+                return False
 
         # Generate SQL
         columns = self._current_result.columns if self._current_result else []
@@ -677,7 +705,7 @@ class ResultView(QWidget):
         )
 
         if not sql_statements:
-            return
+            return False
 
         # Execute SQL statements
         if self._driver:
@@ -697,9 +725,17 @@ class ResultView(QWidget):
 
                 self._update_pending_label()
                 self._update_edit_toolbar_visibility()
+                return True
 
             except Exception as e:
                 self.display_error(f"Failed to commit changes: {e}")
+                return False
+
+        return False
+
+    def discard_pending_changes_without_prompt(self) -> bool:
+        """Discard active-tab pending changes without showing a dialog."""
+        return self._discard_pending_changes(confirm=False)
 
     def _reload_results_after_commit(self) -> None:
         """Re-execute the active query context after commit."""
@@ -734,7 +770,11 @@ class ResultView(QWidget):
                 sql = self._build_filtered_query(where_clause) or ""
                 params = where_params
             else:
-                sql = self._original_query.strip().rstrip(";") if self._original_query else ""
+                sql = (
+                    self._original_query.strip().rstrip(";")
+                    if self._original_query
+                    else ""
+                )
 
         if not sql:
             return
@@ -773,6 +813,10 @@ class ResultView(QWidget):
         self._pending_label.setText(
             f"Pending: {count} change{'s' if count != 1 else ''}"
         )
+        has_pending = count > 0
+        self._commit_btn.setEnabled(has_pending)
+        self._discard_btn.setEnabled(has_pending)
+        self.pending_changes_state_changed.emit(has_pending, count)
 
     def _update_edit_toolbar_visibility(self) -> None:
         """Show/hide edit toolbar based on table context."""
@@ -830,7 +874,9 @@ class ResultView(QWidget):
             except Exception:
                 pass
         if self._current_table:
-            self._table_chip.setText(f"Table: {self._current_schema}.{self._current_table}")
+            self._table_chip.setText(
+                f"Table: {self._current_schema}.{self._current_table}"
+            )
             self._table_chip.setVisible(True)
         else:
             self._table_chip.setVisible(False)
@@ -847,7 +893,14 @@ class ResultView(QWidget):
             return False
 
         q_upper = re.sub(r"\s+", " ", q.upper())
-        for keyword in (" JOIN ", " GROUP BY ", " HAVING ", " UNION ", " INTERSECT ", " EXCEPT "):
+        for keyword in (
+            " JOIN ",
+            " GROUP BY ",
+            " HAVING ",
+            " UNION ",
+            " INTERSECT ",
+            " EXCEPT ",
+        ):
             if keyword in q_upper:
                 return False
 
@@ -1033,11 +1086,14 @@ class ResultView(QWidget):
         self._table.blockSignals(True)
         try:
             self._table.setRowCount(len(page_rows))
-    
+
             for row_idx, row in enumerate(page_rows):
                 for col_idx, value in enumerate(row):
                     self._set_cell_item(
-                        row_idx, col_idx, value, self._current_result.column_types[col_idx]
+                        row_idx,
+                        col_idx,
+                        value,
+                        self._current_result.column_types[col_idx],
                     )
         finally:
             self._table.blockSignals(False)
@@ -1248,7 +1304,9 @@ class ResultView(QWidget):
         self._sort_order = None
 
         # Clear change tracker
-        tab_id = self._active_tab_id if self._active_tab_id is not None else "__default__"
+        tab_id = (
+            self._active_tab_id if self._active_tab_id is not None else "__default__"
+        )
         self._change_trackers[tab_id] = ChangeTracker()
         self._original_row_data.clear()
 
@@ -1271,7 +1329,9 @@ class ResultView(QWidget):
         # Try to detect table from query for inline editing
         self._detect_table_from_query(result.query)
 
-        self._query_mode = "table" if self._is_simple_table_query(result.query) else "query"
+        self._query_mode = (
+            "table" if self._is_simple_table_query(result.query) else "query"
+        )
 
         # Save original query for filter re-execution
         self._original_query = result.query

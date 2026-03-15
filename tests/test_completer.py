@@ -89,6 +89,20 @@ class TestContextDetection:
         assert ctx == "TABLE"
 
 
+class TestStringDetection:
+    def test_inside_single_quote(self):
+        assert CompletionProvider._is_inside_string("SELECT 'abc") is True
+
+    def test_inside_double_quote(self):
+        assert CompletionProvider._is_inside_string('SELECT "ab') is True
+
+    def test_outside_after_closed_quote(self):
+        assert CompletionProvider._is_inside_string("SELECT 'abc' ") is False
+
+    def test_escaped_single_quote(self):
+        assert CompletionProvider._is_inside_string("SELECT 'it''s ok'") is False
+
+
 # ── Filtering ────────────────────────────────────────────────
 
 
@@ -201,6 +215,14 @@ class TestCompletionWithCache:
 
     def test_no_match_returns_empty(self, provider):
         items = provider.get_completions("XYZABC")
+        assert items == []
+
+    def test_no_completion_inside_string(self, provider):
+        items = provider.get_completions("SELECT * FROM users WHERE name = 'al")
+        assert items == []
+
+    def test_no_forced_completion_inside_string(self, provider):
+        items = provider.get_completions_forced("SELECT '")
         assert items == []
 
 

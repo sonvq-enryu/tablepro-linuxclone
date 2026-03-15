@@ -25,7 +25,9 @@ def test_stale_quick_connect_result_is_ignored_and_closed(monkeypatch) -> None:
             lambda conn_id: closed_ids.append(conn_id),
         )
         monkeypatch.setattr(
-            window, "_apply_connected_driver", lambda driver: applied_drivers.append(driver)
+            window,
+            "_apply_connected_driver",
+            lambda driver: applied_drivers.append(driver),
         )
 
         stale_driver = object()
@@ -45,10 +47,14 @@ def test_latest_quick_connect_result_is_applied(monkeypatch) -> None:
 
         window._quick_connect_request_id = 3
         monkeypatch.setattr(
-            window, "_apply_connected_driver", lambda driver: applied_drivers.append(driver)
+            window,
+            "_apply_connected_driver",
+            lambda driver: applied_drivers.append(driver),
         )
         monkeypatch.setattr(
-            window._sidebar, "refresh_connections", lambda: refreshed.__setitem__("count", 1)
+            window._sidebar,
+            "refresh_connections",
+            lambda: refreshed.__setitem__("count", 1),
         )
 
         driver = object()
@@ -132,5 +138,22 @@ def test_non_result_success_keeps_results_tab_and_clears_stale_rows() -> None:
         assert current.row_count == 0
         assert window._result_view._tabs.currentIndex() == 0
         assert window._editor._info_label.text().startswith("3 rows |")
+    finally:
+        window.close()
+
+
+def test_commit_and_rollback_buttons_follow_pending_state() -> None:
+    window = MainWindow()
+    try:
+        assert window._commit_btn.isEnabled() is False
+        assert window._rollback_btn.isEnabled() is False
+
+        window._on_pending_changes_state_changed(True, 2)
+        assert window._commit_btn.isEnabled() is True
+        assert window._rollback_btn.isEnabled() is True
+
+        window._on_pending_changes_state_changed(False, 0)
+        assert window._commit_btn.isEnabled() is False
+        assert window._rollback_btn.isEnabled() is False
     finally:
         window.close()

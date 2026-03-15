@@ -25,8 +25,20 @@ _SQL_FUNCTIONS = sorted(SQLHighlighter.FUNCTIONS)
 _SQL_DATA_TYPES = sorted(SQLHighlighter.DATA_TYPES)
 
 # Keywords after which table/schema names are expected
-_TABLE_CONTEXT_KW = {"FROM", "JOIN", "INTO", "UPDATE", "TABLE", "INNER", "LEFT", "RIGHT",
-                     "OUTER", "FULL", "CROSS", "NATURAL"}
+_TABLE_CONTEXT_KW = {
+    "FROM",
+    "JOIN",
+    "INTO",
+    "UPDATE",
+    "TABLE",
+    "INNER",
+    "LEFT",
+    "RIGHT",
+    "OUTER",
+    "FULL",
+    "CROSS",
+    "NATURAL",
+}
 
 # Keywords after which column names (+ keywords/functions) are expected
 _COLUMN_CONTEXT_KW = {"SELECT", "WHERE", "ON", "SET", "HAVING", "AND", "OR", "BY"}
@@ -113,19 +125,21 @@ class CompletionPopup(QFrame):
         list_height = row_height * visible_rows + 4
         self.setFixedHeight(min(list_height, 250))
 
-        # Position below cursor, flip above if near bottom
+        # Position relative to the text viewport (cursor_rect is viewport-local).
         editor = self._editor
-        global_pos = editor.mapToGlobal(cursor_rect.bottomLeft())
-        parent_pos = self.parent().mapFromGlobal(global_pos) if self.parent() else global_pos
+        viewport = editor.viewport()
+        below_global = viewport.mapToGlobal(cursor_rect.bottomLeft())
 
-        # Check if popup would go off-screen below
-        viewport_bottom = editor.mapToGlobal(editor.viewport().rect().bottomLeft()).y()
-        if global_pos.y() + self.height() > viewport_bottom:
-            above = editor.mapToGlobal(cursor_rect.topLeft())
-            parent_above = self.parent().mapFromGlobal(above) if self.parent() else above
-            self.move(parent_pos.x(), parent_above.y() - self.height())
+        # Keep popup within visible editor viewport: flip above when needed.
+        viewport_top_global = viewport.mapToGlobal(viewport.rect().topLeft()).y()
+        viewport_bottom_global = viewport.mapToGlobal(viewport.rect().bottomLeft()).y()
+
+        if below_global.y() + self.height() > viewport_bottom_global:
+            above_global = viewport.mapToGlobal(cursor_rect.topLeft())
+            y = max(viewport_top_global, above_global.y() - self.height())
+            self.move(below_global.x(), y)
         else:
-            self.move(parent_pos.x(), parent_pos.y())
+            self.move(below_global)
 
         self.show()
         self.raise_()
@@ -161,6 +175,9 @@ class CompletionProvider:
 
     def get_completions(self, text_before_cursor: str) -> list[CompletionItem]:
         """Return completion items for the text preceding the cursor."""
+        if self._is_inside_string(text_before_cursor):
+            return []
+
         prefix = self._extract_prefix(text_before_cursor)
         if not prefix:
             return []
@@ -175,6 +192,9 @@ class CompletionProvider:
 
     def get_completions_forced(self, text_before_cursor: str) -> list[CompletionItem]:
         """Like get_completions but bypasses minimum prefix length."""
+        if self._is_inside_string(text_before_cursor):
+            return []
+
         prefix = self._extract_prefix(text_before_cursor)
         if "." in prefix:
             return self._dot_completions(prefix)
@@ -187,12 +207,46 @@ class CompletionProvider:
     # ── Prefix extraction ────────────────────────────────────
 
     @staticmethod
+    def _is_inside_string(text: str) -> bool:
+        """Return True when cursor is inside a quoted string/identifier."""
+        in_single = False
+        in_double = False
+        i = 0
+        while i < len(text):
+            ch = text[i]
+            if in_single:
+                if ch == "'":
+                    if i + 1 < len(text) and text[i + 1] == "'":
+                        i += 2
+                        continue
+                    in_single = False
+                i += 1
+                continue
+
+            if in_double:
+                if ch == '"':
+                    if i + 1 < len(text) and text[i + 1] == '"':
+                        i += 2
+                        continue
+                    in_double = False
+                i += 1
+                continue
+
+            if ch == "'":
+                in_single = True
+            elif ch == '"':
+                in_double = True
+            i += 1
+
+        return in_single or in_double
+
+    @staticmethod
     def _extract_prefix(text: str) -> str:
         """Scan backward for word chars and dots."""
         i = len(text) - 1
         while i >= 0 and (text[i].isalnum() or text[i] in ("_", ".")):
             i -= 1
-        return text[i + 1:]
+        return text[i + 1 :]
 
     # ── Context detection ────────────────────────────────────
 
@@ -204,12 +258,12 @@ class CompletionProvider:
         # Handle ORDER BY, GROUP BY as single unit
         upper = before.upper()
         if upper.endswith("BY"):
-            pre_by = before[:len(before) - 2].rstrip().upper()
+            pre_by = before[: len(before) - 2].rstrip().upper()
             if pre_by.endswith("ORDER") or pre_by.endswith("GROUP"):
                 return "COLUMN"
 
         # Find last keyword-like token
-        match = re.search(r'\b([A-Za-z_]+)\s*$', before)
+        match = re.search(r"\b([A-Za-z_]+)\s*$", before)
         if match:
             kw = match.group(1).upper()
             if kw in _TABLE_CONTEXT_KW:
@@ -277,7 +331,9 @@ class CompletionProvider:
                     for table in self._cache.get_tables(schema):
                         if table.lower() == qualifier.lower():
                             for col in self._cache.get_columns(table, schema):
-                                items.append(CompletionItem(col.name, "column", col.data_type))
+                                items.append(
+                                    CompletionItem(col.name, "column", col.data_type)
+                                )
                             break
 
         if partial:
@@ -297,5 +353,10 @@ class CompletionProvider:
             elif prefix_lower in text_lower:
                 matched.append(item)
         # Sort: prefix matches first, then alphabetical
-        matched.sort(key=lambda it: (not it.text.lower().startswith(prefix_lower), it.text.lower()))
+        matched.sort(
+            key=lambda it: (
+                not it.text.lower().startswith(prefix_lower),
+                it.text.lower(),
+            )
+        )
         return matched
