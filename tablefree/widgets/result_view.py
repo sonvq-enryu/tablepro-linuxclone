@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont, QKeyEvent, QKeySequence
+from PySide6.QtGui import QColor, QFont, QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QProgressBar,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -74,6 +76,7 @@ class ResultView(QWidget):
         self._query_mode: str = "query"
         self._filter_state_per_tab: dict[str, dict] = {}
         self._setup_ui()
+        self._setup_shortcuts()
         self._table.installEventFilter(self)
         self._table.cellChanged.connect(self._on_cell_changed)
         self._table.cellDoubleClicked.connect(self._on_cell_double_clicked)
@@ -137,6 +140,14 @@ class ResultView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        self._query_progress = QProgressBar()
+        self._query_progress.setObjectName("query-progress")
+        self._query_progress.setTextVisible(False)
+        self._query_progress.setRange(0, 0)
+        self._query_progress.setFixedHeight(2)
+        self._query_progress.setVisible(False)
+        layout.addWidget(self._query_progress)
+
         self._tabs = QTabWidget()
         self._tabs.setObjectName("result-tabs")
         self._tabs.setDocumentMode(True)
@@ -152,29 +163,28 @@ class ResultView(QWidget):
         info_layout.setContentsMargins(10, 4, 10, 4)
         info_layout.setSpacing(8)
 
-        self._rows_label = QLabel("0 rows")
-        self._rows_label.setObjectName("result-info-text")
+        self._rows_label = QLabel("Rows: 0")
+        self._rows_label.setObjectName("result-chip")
         info_layout.addWidget(self._rows_label)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.VLine)
-        sep.setObjectName("result-info-sep")
-        sep.setFixedHeight(14)
-        info_layout.addWidget(sep)
-
-        self._time_label = QLabel("0 ms")
-        self._time_label.setObjectName("result-info-text")
+        self._time_label = QLabel("Time: 0 ms")
+        self._time_label.setObjectName("result-chip")
         info_layout.addWidget(self._time_label)
+
+        self._table_chip = QLabel("Table: -")
+        self._table_chip.setObjectName("result-chip")
+        self._table_chip.setVisible(False)
+        info_layout.addWidget(self._table_chip)
 
         info_layout.addStretch()
 
-        self._filter_toggle_btn = QPushButton("⫧ Filter")
+        self._filter_toggle_btn = QPushButton("Filter")
         self._filter_toggle_btn.setObjectName("filter-toggle-btn")
         self._filter_toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._filter_toggle_btn.clicked.connect(self._toggle_filter_panel)
         info_layout.addWidget(self._filter_toggle_btn)
 
-        self._export_btn = QPushButton("Export ↗")
+        self._export_btn = QPushButton("Export")
         self._export_btn.setObjectName("result-action-link")
         self._export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._export_btn.setFlat(True)
@@ -204,7 +214,15 @@ class ResultView(QWidget):
         )
         self._table.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
 
-        results_layout.addWidget(self._table, stretch=1)
+        self._empty_state = QLabel("Run a query to see results here")
+        self._empty_state.setObjectName("result-empty-state")
+        self._empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._table_stack = QStackedWidget()
+        self._table_stack.addWidget(self._empty_state)
+        self._table_stack.addWidget(self._table)
+        self._table_stack.setCurrentWidget(self._empty_state)
+        results_layout.addWidget(self._table_stack, stretch=1)
 
         self._pagination_bar = self._create_pagination_bar()
         results_layout.addWidget(self._pagination_bar)
@@ -261,15 +279,13 @@ class ResultView(QWidget):
 
         layout.addStretch()
 
-        self._first_btn = QPushButton("◀◀")
+        self._first_btn = QPushButton("First")
         self._first_btn.setObjectName("page-btn")
-        self._first_btn.setFixedWidth(32)
         self._first_btn.clicked.connect(lambda: self._go_to_page(0))
         layout.addWidget(self._first_btn)
 
-        self._prev_btn = QPushButton("◀")
+        self._prev_btn = QPushButton("Prev")
         self._prev_btn.setObjectName("page-btn")
-        self._prev_btn.setFixedWidth(24)
         self._prev_btn.clicked.connect(self._prev_page)
         layout.addWidget(self._prev_btn)
 
@@ -277,15 +293,13 @@ class ResultView(QWidget):
         self._page_label.setObjectName("page-info")
         layout.addWidget(self._page_label)
 
-        self._next_btn = QPushButton("▶")
+        self._next_btn = QPushButton("Next")
         self._next_btn.setObjectName("page-btn")
-        self._next_btn.setFixedWidth(24)
         self._next_btn.clicked.connect(self._next_page)
         layout.addWidget(self._next_btn)
 
-        self._last_btn = QPushButton("▶▶")
+        self._last_btn = QPushButton("Last")
         self._last_btn.setObjectName("page-btn")
-        self._last_btn.setFixedWidth(32)
         self._last_btn.clicked.connect(self._last_page)
         layout.addWidget(self._last_btn)
 
@@ -303,7 +317,7 @@ class ResultView(QWidget):
         self._insert_btn.clicked.connect(self._on_insert_row)
         layout.addWidget(self._insert_btn)
 
-        self._delete_btn = QPushButton("✕ Delete")
+        self._delete_btn = QPushButton("Delete")
         self._delete_btn.setObjectName("edit-btn")
         self._delete_btn.clicked.connect(self._on_delete_row)
         layout.addWidget(self._delete_btn)
@@ -314,7 +328,7 @@ class ResultView(QWidget):
         sep.setFixedHeight(14)
         layout.addWidget(sep)
 
-        self._preview_btn = QPushButton("Preview SQL 👁")
+        self._preview_btn = QPushButton("Preview SQL")
         self._preview_btn.setObjectName("edit-btn")
         self._preview_btn.clicked.connect(self._on_preview_sql)
         layout.addWidget(self._preview_btn)
@@ -324,7 +338,7 @@ class ResultView(QWidget):
         self._discard_btn.clicked.connect(self._on_discard)
         layout.addWidget(self._discard_btn)
 
-        self._commit_btn = QPushButton("Commit ✓")
+        self._commit_btn = QPushButton("Commit")
         self._commit_btn.setObjectName("commit-btn")
         self._commit_btn.setShortcut(QKeySequence("Ctrl+S"))
         self._commit_btn.clicked.connect(self._on_commit)
@@ -332,12 +346,28 @@ class ResultView(QWidget):
 
         layout.addStretch()
 
+        self._edit_context_label = QLabel("Editing: -")
+        self._edit_context_label.setObjectName("edit-context-label")
+        layout.addWidget(self._edit_context_label)
+
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.VLine)
+        sep2.setObjectName("edit-sep")
+        sep2.setFixedHeight(14)
+        layout.addWidget(sep2)
+
         self._pending_label = QLabel("Pending: 0 changes")
         self._pending_label.setObjectName("pending-label")
         layout.addWidget(self._pending_label)
 
         bar.setVisible(False)
         return bar
+
+    def _setup_shortcuts(self) -> None:
+        self._next_page_shortcut = QShortcut(QKeySequence("Ctrl+]"), self)
+        self._next_page_shortcut.activated.connect(self._next_page)
+        self._prev_page_shortcut = QShortcut(QKeySequence("Ctrl+["), self)
+        self._prev_page_shortcut.activated.connect(self._prev_page)
 
     def _toggle_filter_panel(self) -> None:
         """Toggle filter panel visibility."""
@@ -748,6 +778,12 @@ class ResultView(QWidget):
         """Show/hide edit toolbar based on table context."""
         has_table = bool(self._current_table)
         self._edit_toolbar.setVisible(has_table)
+        if has_table:
+            self._edit_context_label.setText(
+                f"Editing: {self._current_schema}.{self._current_table}"
+            )
+        else:
+            self._edit_context_label.setText("Editing: -")
 
     def _restore_filter_state(self, tab_id: str) -> None:
         state = self._filter_state_per_tab.get(tab_id)
@@ -793,6 +829,11 @@ class ResultView(QWidget):
                         break
             except Exception:
                 pass
+        if self._current_table:
+            self._table_chip.setText(f"Table: {self._current_schema}.{self._current_table}")
+            self._table_chip.setVisible(True)
+        else:
+            self._table_chip.setVisible(False)
 
     def _is_simple_table_query(self, query: str) -> bool:
         """Check if query is a simple SELECT * FROM table query."""
@@ -973,6 +1014,7 @@ class ResultView(QWidget):
 
     def _display_page(self, page: int) -> None:
         if not self._current_result:
+            self._table_stack.setCurrentWidget(self._empty_state)
             return
 
         rows = self._current_result.rows
@@ -982,6 +1024,11 @@ class ResultView(QWidget):
             page_rows = rows[start:end]
         else:
             page_rows = rows
+
+        if page_rows:
+            self._table_stack.setCurrentWidget(self._table)
+        else:
+            self._table_stack.setCurrentWidget(self._empty_state)
 
         self._table.blockSignals(True)
         try:
@@ -1143,8 +1190,9 @@ class ResultView(QWidget):
     def _update_pagination_controls(self) -> None:
         total_pages = self._total_pages
         current = self._current_page + 1
+        total_rows = len(self._current_result.rows) if self._current_result else 0
 
-        self._page_label.setText(f"Page {current} of {total_pages}")
+        self._page_label.setText(f"Page {current} of {total_pages} ({total_rows} rows)")
         self._first_btn.setEnabled(current > 1)
         self._prev_btn.setEnabled(current > 1)
         self._next_btn.setEnabled(current < total_pages)
@@ -1217,11 +1265,8 @@ class ResultView(QWidget):
         self._display_page(0)
 
         total_pages = self._total_pages
-        self._rows_label.setText(
-            f"{result.row_count} rows | {result.duration_ms} ms | "
-            f"Page {self._current_page + 1} of {total_pages}"
-        )
-        self._time_label.setText(f"{result.duration_ms} ms")
+        self._rows_label.setText(f"Rows: {result.row_count}")
+        self._time_label.setText(f"Time: {result.duration_ms} ms")
 
         # Try to detect table from query for inline editing
         self._detect_table_from_query(result.query)
@@ -1248,6 +1293,9 @@ class ResultView(QWidget):
         self._tabs.setCurrentIndex(1)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._messages.appendPlainText(f"[{timestamp}] ERROR: {error}")
+
+    def set_loading(self, loading: bool) -> None:
+        self._query_progress.setVisible(loading)
 
     def append_message(self, message: str) -> None:
         self._messages.appendPlainText(message)

@@ -99,12 +99,12 @@ QSplitter::handle {
 }
 
 QSplitter::handle:horizontal {
-    width: 1px;
+    width: 3px;
     margin: 0;
 }
 
 QSplitter::handle:vertical {
-    height: 1px;
+    height: 3px;
     margin: 0;
 }
 
@@ -320,6 +320,12 @@ QWidget#editor-toolbar {
     border-bottom: 1px solid #313244;
 }
 
+QLabel#editor-spinner {
+    color: #89b4fa;
+    font-size: 11px;
+    background: transparent;
+}
+
 QPushButton#toolbar-btn-primary {
     background-color: #22c55e;
     color: #ffffff;
@@ -359,6 +365,13 @@ QPushButton#toolbar-btn:pressed {
 
 QPushButton#toolbar-btn:disabled {
     color: #45475a;
+    border-color: #2b2b3a;
+    background-color: #1a1a27;
+}
+
+QPushButton#toolbar-btn-primary:disabled {
+    background-color: #2f6f45;
+    color: #9db6a8;
 }
 
 /* Explain Button */
@@ -389,6 +402,24 @@ QLabel#editor-info {
     background: transparent;
 }
 
+QLabel#editor-cursor-info {
+    color: #6c7086;
+    font-size: 11px;
+    background: transparent;
+}
+
+QWidget#editor-status-bar {
+    background-color: #181825;
+    border-top: 1px solid #313244;
+}
+
+QLabel#editor-status-text,
+QLabel#editor-status-connection {
+    color: #6c7086;
+    font-size: 11px;
+    background: transparent;
+}
+
 QFrame#editor-separator {
     background-color: #313244;
     border: none;
@@ -406,16 +437,16 @@ QTabWidget#editor-tabs > QTabBar::tab {
     color: #6c7086;
     padding: 8px 20px;
     border: none;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
     margin-right: 0;
-    min-width: 100px;
+    min-width: 120px;
     font-size: 12px;
 }
 
 QTabWidget#editor-tabs > QTabBar::tab:selected {
     background-color: #1e1e2e;
     color: #cdd6f4;
-    border-bottom: 2px solid #89b4fa;
+    border-bottom: 3px solid #89b4fa;
 }
 
 QTabWidget#editor-tabs > QTabBar::tab:hover:!selected {
@@ -436,6 +467,19 @@ QPushButton#add-tab-btn {
 QPushButton#add-tab-btn:hover {
     background-color: #313244;
     color: #cdd6f4;
+}
+
+QTabBar::close-button {
+    subcontrol-position: right;
+    image: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    background-color: transparent;
+}
+
+QTabBar::close-button:hover {
+    background-color: #313244;
 }
 
 /* SQL Editor */
@@ -494,6 +538,12 @@ QLabel#pending-label {
     background: transparent;
 }
 
+QLabel#edit-context-label {
+    color: #a6adc8;
+    font-size: 11px;
+    background: transparent;
+}
+
 QPushButton#filter-toggle-btn {
     background-color: transparent;
     color: #a6adc8;
@@ -534,7 +584,7 @@ QTabWidget#result-tabs > QTabBar::tab {
 QTabWidget#result-tabs > QTabBar::tab:selected {
     background-color: #1e1e2e;
     color: #cdd6f4;
-    border-bottom: 2px solid #89b4fa;
+    border-bottom: 3px solid #89b4fa;
 }
 
 QTabWidget#result-tabs > QTabBar::tab:hover:!selected {
@@ -547,25 +597,22 @@ QWidget#result-info-bar {
     border-bottom: 1px solid #313244;
 }
 
-QLabel#result-info-text {
-    color: #6c7086;
+QLabel#result-chip {
+    color: #a6adc8;
     font-size: 11px;
-    background: transparent;
+    background-color: #252738;
+    border: 1px solid #313244;
+    border-radius: 10px;
+    padding: 2px 8px;
 }
 
-QFrame#result-info-sep {
-    background-color: #313244;
-    border: none;
-    max-width: 1px;
-}
-
-QLabel#result-action-link {
+QPushButton#result-action-link {
     color: #22c55e;
     font-size: 11px;
     background: transparent;
 }
 
-QLabel#result-action-link:hover {
+QPushButton#result-action-link:hover {
     color: #16a34a;
 }
 
@@ -645,9 +692,9 @@ QPushButton#page-btn {
     color: #a6adc8;
     border: 1px solid #313244;
     border-radius: 4px;
-    padding: 2px 6px;
+    padding: 3px 10px;
     font-size: 11px;
-    min-width: 24px;
+    min-width: 48px;
 }
 
 QPushButton#page-btn:hover {
@@ -665,6 +712,21 @@ QLabel#page-info {
     color: #6c7086;
     font-size: 11px;
     background: transparent;
+}
+
+QLabel#result-empty-state {
+    color: #6c7086;
+    font-size: 12px;
+    background-color: #1e1e2e;
+}
+
+QProgressBar#query-progress {
+    border: none;
+    background: #181825;
+}
+
+QProgressBar#query-progress::chunk {
+    background-color: #89b4fa;
 }
 
 /* Messages / History */

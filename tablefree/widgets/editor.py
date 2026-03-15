@@ -10,7 +10,7 @@ from uuid import uuid4
 import sqlparse
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QSettings, Qt, QTimer, Signal
-from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QIcon, QKeyEvent, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -52,6 +52,9 @@ class EditorPanel(QWidget):
         self._closed_tabs: list[TabState] = []
         self._next_query_number = 1
         self._restoring_tabs = False
+        self._spinner_frames = ["", ".", "..", "..."]
+        self._spinner_index = 0
+        self._pin_icon = self._create_pin_icon()
         self._setup_autosave()
         self._setup_ui()
         self._setup_tab_context_menu()
@@ -82,11 +85,32 @@ class EditorPanel(QWidget):
         self._run_sel_btn.clicked.connect(self._on_run_selection)
         tb_layout.addWidget(self._run_sel_btn)
 
+        left_sep = QFrame()
+        left_sep.setObjectName("toolbar-separator")
+        left_sep.setFrameShape(QFrame.Shape.VLine)
+        left_sep.setFixedHeight(16)
+        tb_layout.addWidget(left_sep)
+
         tb_layout.addStretch()
 
-        self._info_label = QLabel("")
+        self._spinner_label = QLabel("")
+        self._spinner_label.setObjectName("editor-spinner")
+        self._spinner_label.setFixedWidth(36)
+        tb_layout.addWidget(self._spinner_label)
+
+        self._info_label = QLabel("Ready")
         self._info_label.setObjectName("editor-info")
         tb_layout.addWidget(self._info_label)
+
+        self._cursor_toolbar_label = QLabel("Ln 1, Col 1")
+        self._cursor_toolbar_label.setObjectName("editor-cursor-info")
+        tb_layout.addWidget(self._cursor_toolbar_label)
+
+        right_sep = QFrame()
+        right_sep.setObjectName("toolbar-separator")
+        right_sep.setFrameShape(QFrame.Shape.VLine)
+        right_sep.setFixedHeight(16)
+        tb_layout.addWidget(right_sep)
 
         self._run_btn = QPushButton("Run")
         self._run_btn.setObjectName("toolbar-btn-primary")
@@ -127,14 +151,33 @@ class EditorPanel(QWidget):
         add_tab_btn.clicked.connect(self._new_tab)
         self._tabs.setCornerWidget(add_tab_btn, Qt.Corner.TopRightCorner)
 
-        self._new_tab(title="[Query 1]")
         layout.addWidget(self._tabs, stretch=1)
+
+        status_bar = QWidget()
+        status_bar.setObjectName("editor-status-bar")
+        status_layout = QHBoxLayout(status_bar)
+        status_layout.setContentsMargins(10, 2, 10, 2)
+        status_layout.setSpacing(8)
+
+        self._cursor_status_label = QLabel("Ln 1, Col 1")
+        self._cursor_status_label.setObjectName("editor-status-text")
+        status_layout.addWidget(self._cursor_status_label)
+        status_layout.addStretch()
+
+        self._connection_label = QLabel("Disconnected")
+        self._connection_label.setObjectName("editor-status-connection")
+        status_layout.addWidget(self._connection_label)
+        layout.addWidget(status_bar)
+        self._new_tab(title="Query 1")
 
     def _setup_autosave(self) -> None:
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(500)
         self._save_timer.timeout.connect(self._save_tab_states)
+        self._spinner_timer = QTimer(self)
+        self._spinner_timer.setInterval(250)
+        self._spinner_timer.timeout.connect(self._advance_spinner)
 
     def _setup_tab_context_menu(self) -> None:
         tab_bar = self._tabs.tabBar()
@@ -162,7 +205,37 @@ class EditorPanel(QWidget):
         self._shortcuts.append(shortcut)
 
     def _display_title(self, state: TabState) -> str:
-        return f"[P] {state.title}" if state.pinned else state.title
+        if self._is_tab_modified(state):
+            return f"{state.title}  •"
+        return state.title
+
+    def _is_tab_modified(self, state: TabState) -> bool:
+        if state.last_query is None:
+            return False
+        return state.sql.strip() != state.last_query.strip()
+
+    def _create_pin_icon(self) -> QIcon:
+        pixmap = QPixmap(10, 10)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#f59e0b"))
+        painter.drawEllipse(2, 2, 6, 6)
+        painter.end()
+        return QIcon(pixmap)
+
+    def _apply_tab_visual_state(self, tab_id: str) -> None:
+        for i in range(self._tabs.count()):
+            editor = self._tabs.widget(i)
+            if editor is None or editor.property("tab_id") != tab_id:
+                continue
+            state = self._tab_states.get(tab_id)
+            if state is None:
+                return
+            self._tabs.setTabText(i, self._display_title(state))
+            self._tabs.setTabIcon(i, self._pin_icon if state.pinned else QIcon())
+            return
 
     def _add_tab_with_state(self, state: TabState, *, set_current: bool = True) -> None:
         editor = CodeEditor()
@@ -175,19 +248,29 @@ class EditorPanel(QWidget):
         editor.installEventFilter(self)
         editor.setProperty("tab_id", state.tab_id)
         editor.textChanged.connect(self._on_text_changed)
+        editor.cursorPositionChanged.connect(self._on_cursor_position_changed)
         editor.setPlainText(state.sql)
         self._tab_states[state.tab_id] = state
         self._tabs.addTab(editor, self._display_title(state))
+        self._apply_tab_visual_state(state.tab_id)
         if set_current:
             self._tabs.setCurrentWidget(editor)
+            self._update_cursor_labels(editor)
 
     def _new_tab(self, *, title: str | None = None, sql: str = "", pinned: bool = False) -> None:
         if title is None:
-            title = f"[Query {self._next_query_number}]"
+            title = f"Query {self._next_query_number}"
+        title = self._normalize_title(title)
         self._next_query_number += 1
         state = TabState(tab_id=str(uuid4()), title=title, sql=sql, pinned=pinned)
         self._add_tab_with_state(state, set_current=True)
         self._save_if_needed()
+
+    def _normalize_title(self, title: str) -> str:
+        match = re.match(r"^\[Query\s+(\d+)\]$", title.strip())
+        if match:
+            return f"Query {match.group(1)}"
+        return title.strip()
 
     def _close_tab(self, index: int, *, push_closed: bool = True) -> None:
         editor = self._tabs.widget(index)
@@ -219,6 +302,8 @@ class EditorPanel(QWidget):
             tab_id = widget.property("tab_id")
             if isinstance(tab_id, str):
                 self.tab_changed.emit(tab_id)
+                if isinstance(widget, CodeEditor):
+                    self._update_cursor_labels(widget)
                 self._save_if_needed()
 
     def _on_tab_reordered(self, _from: int, _to: int) -> None:
@@ -235,7 +320,27 @@ class EditorPanel(QWidget):
         if state is None:
             return
         state.sql = editor.toPlainText()
+        self._apply_tab_visual_state(tab_id)
         self._save_if_needed()
+
+    def _on_cursor_position_changed(self) -> None:
+        editor = self.sender()
+        if isinstance(editor, CodeEditor) and editor is self.current_editor():
+            self._update_cursor_labels(editor)
+
+    def _update_cursor_labels(self, editor: CodeEditor | None) -> None:
+        if editor is None:
+            return
+        cursor = editor.textCursor()
+        text = f"Ln {cursor.blockNumber() + 1}, Col {cursor.columnNumber() + 1}"
+        if hasattr(self, "_cursor_toolbar_label"):
+            self._cursor_toolbar_label.setText(text)
+        if hasattr(self, "_cursor_status_label"):
+            self._cursor_status_label.setText(text)
+
+    def _advance_spinner(self) -> None:
+        self._spinner_index = (self._spinner_index + 1) % len(self._spinner_frames)
+        self._spinner_label.setText(f"Running{self._spinner_frames[self._spinner_index]}")
 
     def _save_if_needed(self) -> None:
         if self._restoring_tabs:
@@ -311,7 +416,7 @@ class EditorPanel(QWidget):
         if state is None:
             return
         state.pinned = not state.pinned
-        self._tabs.setTabText(index, self._display_title(state))
+        self._apply_tab_visual_state(tab_id)
         self._save_if_needed()
 
     def _duplicate_tab(self, index: int) -> None:
@@ -444,7 +549,7 @@ class EditorPanel(QWidget):
                         restored_states.append(
                             TabState(
                                 tab_id=tab_id,
-                                title=title,
+                                title=self._normalize_title(title),
                                 sql=sql,
                                 pinned=bool(pinned),
                                 last_query=item.get("last_query"),
@@ -478,12 +583,13 @@ class EditorPanel(QWidget):
                 else:
                     self._tabs.setCurrentIndex(0)
             else:
-                self._new_tab(title="[Query 1]")
+                self._new_tab(title="Query 1")
         finally:
             self._restoring_tabs = False
 
     def _sync_query_counter(self, title: str) -> None:
-        match = re.match(r"^\[Query\s+(\d+)\]$", title)
+        normalized = self._normalize_title(title)
+        match = re.match(r"^Query\s+(\d+)$", normalized)
         if match:
             num = int(match.group(1))
             self._next_query_number = max(self._next_query_number, num + 1)
@@ -518,6 +624,11 @@ class EditorPanel(QWidget):
     def _on_run(self) -> None:
         sql = self.current_sql()
         if sql.strip():
+            tab_id = self.active_tab_id()
+            state = self._tab_states.get(tab_id)
+            if state is not None:
+                state.last_query = sql
+                self._apply_tab_visual_state(tab_id)
             self._set_running_state(True)
             self.query_submitted.emit(sql)
 
@@ -535,12 +646,22 @@ class EditorPanel(QWidget):
             )
 
         if sql.strip():
+            tab_id = self.active_tab_id()
+            state = self._tab_states.get(tab_id)
+            if state is not None:
+                state.last_query = sql
+                self._apply_tab_visual_state(tab_id)
             self._set_running_state(True)
             self.query_submitted.emit(sql)
 
     def _on_explain(self) -> None:
         sql = self.current_sql()
         if sql.strip():
+            tab_id = self.active_tab_id()
+            state = self._tab_states.get(tab_id)
+            if state is not None:
+                state.last_query = sql
+                self._apply_tab_visual_state(tab_id)
             self._set_running_state(True)
             self.query_submitted.emit(f"EXPLAIN {sql}")
 
@@ -578,6 +699,10 @@ class EditorPanel(QWidget):
 
     def set_driver(self, driver) -> None:
         self._driver = driver
+        if driver and getattr(driver, "config", None):
+            self._connection_label.setText(driver.config.name or "Connected")
+        else:
+            self._connection_label.setText("Disconnected")
 
     def set_query_complete(self) -> None:
         self._set_running_state(False)
@@ -591,6 +716,13 @@ class EditorPanel(QWidget):
         self._run_sel_btn.setEnabled(not running)
         self._fmt_btn.setEnabled(not running)
         self._explain_btn.setEnabled(not running)
+        if running:
+            self._spinner_index = 0
+            self._spinner_label.setText("Running")
+            self._spinner_timer.start()
+        else:
+            self._spinner_timer.stop()
+            self._spinner_label.setText("")
 
     def current_editor(self) -> CodeEditor | None:
         widget = self._tabs.currentWidget()

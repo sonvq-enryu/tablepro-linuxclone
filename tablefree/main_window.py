@@ -2,7 +2,7 @@
 
 import time
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QFrame,
@@ -31,6 +31,29 @@ from tablefree.widgets.result_view import ResultView
 from tablefree.widgets.sidebar import Sidebar
 from tablefree.workers.query_worker import QueryWorker
 
+
+class _MainThreadSlotHelper(QObject):
+    """Ensure worker callbacks execute on the GUI thread with context."""
+
+    def __init__(self, parent: QObject, callback, *args, **kwargs) -> None:
+        super().__init__(parent)
+        self._callback = callback
+        self._args = args
+        self._kwargs = kwargs
+
+    def on_finished(self, result: object) -> None:
+        try:
+            self._callback(*self._args, result, **self._kwargs)
+        finally:
+            self.deleteLater()
+
+    def on_error(self, error: Exception) -> None:
+        try:
+            self._callback(*self._args, error, **self._kwargs)
+        finally:
+            self.deleteLater()
+
+
 class MainWindow(QMainWindow):
     """Three-panel main window: sidebar | editor / results."""
 
@@ -44,6 +67,7 @@ class MainWindow(QMainWindow):
         self._active_driver = None
         self._active_connection_id: str | None = None
         self._active_profile_id: str | None = None
+        self._quick_connect_request_id = 0
         self._current_query = ""
         self._setup_window()
         self._setup_menu_bar()
@@ -382,22 +406,34 @@ class MainWindow(QMainWindow):
 
         # Sidebar quick-connect switches active connection context.
         self._conn_manager.close_all()
+        self._quick_connect_request_id += 1
+        request_id = self._quick_connect_request_id
 
         worker = QueryWorker(self._conn_manager.create_connection, connection_id, config)
-        worker.signals.finished.connect(
-            lambda driver: self._on_sidebar_connect_finished(driver, connection_id)
+        done_helper = _MainThreadSlotHelper(
+            self, self._on_sidebar_connect_finished, request_id, connection_id=connection_id
         )
-        worker.signals.error.connect(self._on_sidebar_connect_error)
+        worker.signals.finished.connect(done_helper.on_finished)
+        err_helper = _MainThreadSlotHelper(self, self._on_sidebar_connect_error, request_id)
+        worker.signals.error.connect(err_helper.on_error)
         from PySide6.QtCore import QThreadPool
 
         QThreadPool.globalInstance().start(worker)
 
-    def _on_sidebar_connect_finished(self, driver, connection_id: str) -> None:
+    def _on_sidebar_connect_finished(
+        self, request_id: int, driver, connection_id: str
+    ) -> None:
+        if request_id != self._quick_connect_request_id:
+            # A newer quick-connect request was made; discard this result.
+            self._conn_manager.close_connection(connection_id)
+            return
         self._active_profile_id = connection_id
         self._apply_connected_driver(driver)
         self._sidebar.refresh_connections()
 
-    def _on_sidebar_connect_error(self, error: Exception) -> None:
+    def _on_sidebar_connect_error(self, request_id: int, error: Exception) -> None:
+        if request_id != self._quick_connect_request_id:
+            return
         self._conn_indicator.setText("●  Disconnected")
         self._conn_indicator.setObjectName("status-connection")
         self._conn_indicator.style().unpolish(self._conn_indicator)
@@ -481,11 +517,13 @@ class MainWindow(QMainWindow):
             self._result_view.append_message(
                 "No active connection. Please connect to a database first."
             )
+            self._result_view.set_loading(False)
             self._editor.set_query_complete()
             return
 
         self._current_query = sql  # Store for result view
         self._editor._info_label.setText("Executing...")
+        self._result_view.set_loading(True)
         self._query_start_time = time.perf_counter()
 
         worker = QueryWorker(self._active_driver.execute, sql)
@@ -520,6 +558,7 @@ class MainWindow(QMainWindow):
         elapsed = (time.perf_counter() - self._query_start_time) * 1000
         duration_ms = round(elapsed, 1)
         rows_affected = 0
+        self._result_view.set_loading(False)
 
         if isinstance(result, list) and result:
             if isinstance(result[0], dict):
@@ -564,6 +603,7 @@ class MainWindow(QMainWindow):
     def _on_query_error(self, error: Exception) -> None:
         elapsed = (time.perf_counter() - self._query_start_time) * 1000
         duration_ms = round(elapsed, 1)
+        self._result_view.set_loading(False)
         self._result_view.display_error(str(error))
         self._editor._info_label.setText(f"Error | {duration_ms} ms")
         self._record_query_history(
