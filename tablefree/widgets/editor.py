@@ -23,7 +23,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from tablefree.services.schema_cache import SchemaMetadataCache
 from tablefree.widgets.code_editor import CodeEditor
+from tablefree.widgets.completer import CompletionProvider
 
 
 @dataclass
@@ -47,6 +49,7 @@ class EditorPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("editor-panel")
         self._driver = None
+        self._cache = SchemaMetadataCache(self)
         self._query_running = False
         self._connection_id: str | None = None
         self._tab_states: dict[str, TabState] = {}
@@ -299,6 +302,8 @@ class EditorPanel(QWidget):
         )
         editor.installEventFilter(self)
         editor.setProperty("tab_id", state.tab_id)
+        provider = CompletionProvider(self._cache)
+        editor.set_completion_provider(provider)
         editor.textChanged.connect(self._on_text_changed)
         editor.cursorPositionChanged.connect(self._on_cursor_position_changed)
         editor.setPlainText(state.sql)
@@ -351,6 +356,11 @@ class EditorPanel(QWidget):
         self._save_if_needed()
 
     def _on_tab_changed(self, index: int) -> None:
+        # Hide any open completion popup from previous tab
+        for i in range(self._tabs.count()):
+            w = self._tabs.widget(i)
+            if isinstance(w, CodeEditor) and i != index:
+                w._hide_popup()
         widget = self._tabs.widget(index)
         if widget:
             tab_id = widget.property("tab_id")
@@ -758,6 +768,7 @@ class EditorPanel(QWidget):
 
     def set_driver(self, driver) -> None:
         self._driver = driver
+        self._cache.set_driver(driver)
         if driver and getattr(driver, "config", None):
             self._connection_label.setText(driver.config.name or "Connected")
         else:
