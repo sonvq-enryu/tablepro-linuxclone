@@ -109,6 +109,13 @@ class StructureView(QWidget):
 
         self._tabs.setCurrentIndex(0)
 
+    def refresh_theme(self) -> None:
+        """Refresh runtime-themed widgets inside the structure view."""
+        self._ddl_editor.refresh_theme()
+        self._columns_table.viewport().update()
+        self._indexes_table.viewport().update()
+        self._fk_table.viewport().update()
+
     def load_structure(
         self, driver: DatabaseDriver, table: str, schema: str | None = None
     ) -> None:

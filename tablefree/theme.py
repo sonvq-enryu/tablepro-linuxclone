@@ -38,6 +38,11 @@ class ThemeColors:
     line_num_active: QColor
     badge_bg: QColor
     badge_text: QColor
+    sidebar_schema: QColor
+    sidebar_table: QColor
+    sidebar_column: QColor
+    sidebar_pk: QColor
+    sidebar_loading: QColor
     selected_bg: QColor
     selected_text: QColor
     item_text: QColor
@@ -78,6 +83,11 @@ DARK = ThemeColors(
     line_num_active=_q("#cdd6f4"),
     badge_bg=_q("#334155"),
     badge_text=_q("#93c5fd"),
+    sidebar_schema=_q("#89b4fa"),
+    sidebar_table=_q("#a6e3a1"),
+    sidebar_column=_q("#a6adc8"),
+    sidebar_pk=_q("#fab387"),
+    sidebar_loading=_q("#6c7086"),
     selected_bg=_q("#1e293b"),
     selected_text=_q("#ffffff"),
     item_text=_q("#e2e8f0"),
@@ -114,6 +124,11 @@ LIGHT = ThemeColors(
     line_num_active=_q("#1e293b"),
     badge_bg=_q("#e2e8f0"),
     badge_text=_q("#3b82f6"),
+    sidebar_schema=_q("#2563eb"),
+    sidebar_table=_q("#16a34a"),
+    sidebar_column=_q("#64748b"),
+    sidebar_pk=_q("#b45309"),
+    sidebar_loading=_q("#94a3b8"),
     selected_bg=_q("#dcfce7"),
     selected_text=_q("#16a34a"),
     item_text=_q("#334155"),

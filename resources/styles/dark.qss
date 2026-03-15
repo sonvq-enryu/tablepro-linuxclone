@@ -171,6 +171,15 @@ QLabel#sidebar-title {
     background: transparent;
 }
 
+QLabel#sidebar-connection-status {
+    border-radius: 4px;
+    background-color: #f38ba8;
+}
+
+QLabel#sidebar-connection-status[connected="true"] {
+    background-color: #22c55e;
+}
+
 QLabel#connection-badge-inactive {
     color: #f38ba8;
     font-size: 11px;
@@ -204,16 +213,16 @@ QComboBox#connection-combo::down-arrow {
     margin-right: 6px;
 }
 
-/* Sidebar Refresh Button */
-QPushButton#sidebar-refresh {
+/* Sidebar Header Icon Buttons */
+QPushButton#sidebar-icon-btn {
     background-color: transparent;
     color: #6c7086;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 14px;
 }
 
-QPushButton#sidebar-refresh:hover {
+QPushButton#sidebar-icon-btn:hover {
     background-color: #313244;
     color: #cdd6f4;
 }
@@ -259,8 +268,9 @@ QTreeWidget#schema-tree {
 }
 
 QTreeWidget#schema-tree::item {
-    padding: 5px 8px;
-    border-radius: 4px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
     margin: 0 6px;
 }
 
@@ -271,6 +281,7 @@ QTreeWidget#schema-tree::item:hover {
 QTreeWidget#schema-tree::item:selected {
     background-color: #313244;
     color: #89b4fa;
+    border-left: 2px solid #89b4fa;
 }
 
 QTreeWidget#schema-tree::branch {

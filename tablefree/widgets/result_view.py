@@ -1226,3 +1226,5 @@ class ResultView(QWidget):
                     item.setBackground(self._insert_bg())
                 elif state == "deleted":
                     item.setBackground(self._delete_bg())
+        if hasattr(self._structure_view, "refresh_theme"):
+            self._structure_view.refresh_theme()
