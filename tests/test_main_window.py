@@ -1,8 +1,11 @@
-"""Tests for quick-connect behavior in MainWindow."""
+"""Tests for quick-connect and query-result behavior in MainWindow."""
+
+import time
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from tablefree.main_window import MainWindow
+from tablefree.models import QueryResult
 
 APP = QApplication.instance()
 if APP is None:
@@ -71,5 +74,63 @@ def test_stale_quick_connect_error_is_ignored(monkeypatch) -> None:
         window._on_sidebar_connect_error(4, RuntimeError("stale error"))
 
         assert warnings == []
+    finally:
+        window.close()
+
+
+def test_query_with_no_rows_clears_previous_results_view() -> None:
+    window = MainWindow()
+    try:
+        explain_result = QueryResult(
+            columns=["QUERY PLAN"],
+            rows=[["Seq Scan on users"]],
+            column_types=["text"],
+            row_count=1,
+            duration_ms=1.2,
+            query="EXPLAIN SELECT * FROM users",
+        )
+        window._result_view.display_results(explain_result)
+
+        window._current_query = "SELECT * FROM users WHERE 1 = 0"
+        window._query_start_time = time.perf_counter()
+        window._on_query_finished([])
+
+        current = window._result_view.current_result
+        assert current is not None
+        assert current.query == "SELECT * FROM users WHERE 1 = 0"
+        assert current.columns == []
+        assert current.rows == []
+        assert current.row_count == 0
+        assert window._result_view._tabs.currentIndex() == 0
+        assert window._editor._info_label.text().startswith("0 rows |")
+    finally:
+        window.close()
+
+
+def test_non_result_success_keeps_results_tab_and_clears_stale_rows() -> None:
+    window = MainWindow()
+    try:
+        explain_result = QueryResult(
+            columns=["QUERY PLAN"],
+            rows=[["Seq Scan on users"]],
+            column_types=["text"],
+            row_count=1,
+            duration_ms=1.2,
+            query="EXPLAIN SELECT * FROM users",
+        )
+        window._result_view.display_results(explain_result)
+
+        window._current_query = "UPDATE users SET active = true"
+        window._query_start_time = time.perf_counter()
+        window._on_query_finished((3, None))
+
+        current = window._result_view.current_result
+        assert current is not None
+        assert current.query == "UPDATE users SET active = true"
+        assert current.columns == []
+        assert current.rows == []
+        assert current.row_count == 0
+        assert window._result_view._tabs.currentIndex() == 0
+        assert window._editor._info_label.text().startswith("3 rows |")
     finally:
         window.close()

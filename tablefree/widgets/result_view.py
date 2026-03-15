@@ -1297,9 +1297,10 @@ class ResultView(QWidget):
     def set_loading(self, loading: bool) -> None:
         self._query_progress.setVisible(loading)
 
-    def append_message(self, message: str) -> None:
+    def append_message(self, message: str, *, switch_to_messages: bool = True) -> None:
         self._messages.appendPlainText(message)
-        self._tabs.setCurrentIndex(1)
+        if switch_to_messages:
+            self._tabs.setCurrentIndex(1)
 
     def show_structure(
         self, driver: "DatabaseDriver", table: str, schema: str | None = None

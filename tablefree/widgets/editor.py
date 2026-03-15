@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QPushButton,
+    QTabBar,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -235,7 +236,58 @@ class EditorPanel(QWidget):
                 return
             self._tabs.setTabText(i, self._display_title(state))
             self._tabs.setTabIcon(i, self._pin_icon if state.pinned else QIcon())
+            self._sync_tab_close_button(i)
             return
+
+    def _close_tab_by_id(self, tab_id: str) -> None:
+        for i in range(self._tabs.count()):
+            editor = self._tabs.widget(i)
+            if editor is not None and editor.property("tab_id") == tab_id:
+                self._close_tab(i)
+                return
+
+    def _sync_tab_close_button(self, index: int) -> None:
+        editor = self._tabs.widget(index)
+        if editor is None:
+            return
+        tab_id = editor.property("tab_id")
+        if not isinstance(tab_id, str):
+            return
+        state = self._tab_states.get(tab_id)
+        if state is None:
+            return
+
+        tab_bar = self._tabs.tabBar()
+        side = QTabBar.ButtonPosition.RightSide
+        existing = tab_bar.tabButton(index, side)
+        should_show = not state.pinned and self._tabs.count() > 1
+
+        if not should_show:
+            if existing is not None:
+                tab_bar.setTabButton(index, side, None)
+                existing.deleteLater()
+            return
+
+        if (
+            isinstance(existing, QPushButton)
+            and existing.objectName() == "tab-close-btn"
+            and existing.property("tab_id") == tab_id
+        ):
+            return
+
+        close_btn = QPushButton("×", tab_bar)
+        close_btn.setObjectName("tab-close-btn")
+        close_btn.setProperty("tab_id", tab_id)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.setToolTip("Close tab (Ctrl+W)")
+        close_btn.setFixedSize(16, 16)
+        close_btn.setFlat(True)
+        close_btn.clicked.connect(lambda _=False, tid=tab_id: self._close_tab_by_id(tid))
+        tab_bar.setTabButton(index, side, close_btn)
+
+    def _refresh_tab_close_buttons(self) -> None:
+        for i in range(self._tabs.count()):
+            self._sync_tab_close_button(i)
 
     def _add_tab_with_state(self, state: TabState, *, set_current: bool = True) -> None:
         editor = CodeEditor()
@@ -252,6 +304,7 @@ class EditorPanel(QWidget):
         editor.setPlainText(state.sql)
         self._tab_states[state.tab_id] = state
         self._tabs.addTab(editor, self._display_title(state))
+        self._refresh_tab_close_buttons()
         self._apply_tab_visual_state(state.tab_id)
         if set_current:
             self._tabs.setCurrentWidget(editor)
@@ -293,6 +346,7 @@ class EditorPanel(QWidget):
             self._closed_tabs = self._closed_tabs[-10:]
         self._tabs.removeTab(index)
         self._tab_states.pop(tab_id, None)
+        self._refresh_tab_close_buttons()
         self.tab_closed.emit(tab_id)
         self._save_if_needed()
 
@@ -307,6 +361,7 @@ class EditorPanel(QWidget):
                 self._save_if_needed()
 
     def _on_tab_reordered(self, _from: int, _to: int) -> None:
+        self._refresh_tab_close_buttons()
         self._save_if_needed()
 
     def _on_text_changed(self) -> None:
@@ -622,7 +677,7 @@ class EditorPanel(QWidget):
         super().keyPressEvent(event)
 
     def _on_run(self) -> None:
-        sql = self.current_sql()
+        sql = self._normalize_sql_for_execution(self.current_sql())
         if sql.strip():
             tab_id = self.active_tab_id()
             state = self._tab_states.get(tab_id)
@@ -639,7 +694,7 @@ class EditorPanel(QWidget):
 
         cursor = editor.textCursor()
         if cursor.hasSelection():
-            sql = cursor.selectedText()
+            sql = self._normalize_sql_for_execution(cursor.selectedText())
         else:
             sql = self._find_statement_at_cursor(
                 editor.toPlainText(), cursor.position()
@@ -655,7 +710,7 @@ class EditorPanel(QWidget):
             self.query_submitted.emit(sql)
 
     def _on_explain(self) -> None:
-        sql = self.current_sql()
+        sql = self._normalize_sql_for_execution(self.current_sql())
         if sql.strip():
             tab_id = self.active_tab_id()
             state = self._tab_states.get(tab_id)
@@ -679,6 +734,10 @@ class EditorPanel(QWidget):
             if cursor_position <= len(formatted):
                 cursor.setPosition(cursor_position)
                 editor.setTextCursor(cursor)
+
+    def _normalize_sql_for_execution(self, sql: str) -> str:
+        # QTextCursor.selectedText() uses Unicode paragraph/line separators for newlines.
+        return sql.replace("\u2029", "\n").replace("\u2028", "\n")
 
     def _find_statement_at_cursor(self, text: str, cursor_position: int) -> str:
         statements = sqlparse.split(text)

@@ -600,8 +600,20 @@ class MainWindow(QMainWindow):
         rows_affected = 0
         self._result_view.set_loading(False)
 
-        if isinstance(result, list) and result:
-            if isinstance(result[0], dict):
+        def _display_empty_result() -> None:
+            self._result_view.display_results(
+                QueryResult(
+                    columns=[],
+                    rows=[],
+                    column_types=[],
+                    row_count=0,
+                    duration_ms=duration_ms,
+                    query=self._current_query,
+                )
+            )
+
+        if isinstance(result, list):
+            if result and isinstance(result[0], dict):
                 columns = list(result[0].keys())
                 data = [list(r.values()) for r in result]
                 rows_affected = len(data)
@@ -615,21 +627,25 @@ class MainWindow(QMainWindow):
                     query=self._current_query,
                 )
                 self._result_view.display_results(query_result)
+                self._editor._info_label.setText(f"{len(data)} rows | {duration_ms} ms")
             else:
-                rows_affected = len(result)
-                self._result_view.append_message(
-                    f"Query executed successfully ({duration_ms} ms, {len(result)} rows returned)"
-                )
-            self._editor._info_label.setText(f"{len(result)} rows | {duration_ms} ms")
+                # Always clear stale grid state when the latest query has no rows,
+                # so prior EXPLAIN/SELECT results are not left on screen.
+                _display_empty_result()
+                self._editor._info_label.setText(f"0 rows | {duration_ms} ms")
         elif isinstance(result, tuple):
             rows_affected, _ = result
+            _display_empty_result()
             self._result_view.append_message(
-                f"Query executed successfully. {rows_affected} rows affected ({duration_ms} ms)."
+                f"Query executed successfully. {rows_affected} rows affected ({duration_ms} ms).",
+                switch_to_messages=False,
             )
             self._editor._info_label.setText(f"{rows_affected} rows | {duration_ms} ms")
         else:
+            _display_empty_result()
             self._result_view.append_message(
-                f"Query executed successfully ({duration_ms} ms)"
+                f"Query executed successfully ({duration_ms} ms)",
+                switch_to_messages=False,
             )
             self._editor._info_label.setText(f"{duration_ms} ms")
 

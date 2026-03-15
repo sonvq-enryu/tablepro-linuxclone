@@ -435,7 +435,7 @@ QTabWidget#editor-tabs::pane {{
 QTabWidget#editor-tabs > QTabBar::tab {{
     background-color: {surface};
     color: {muted};
-    padding: 8px 20px;
+    padding: 8px 24px 8px 16px;
     border: none;
     border-bottom: 3px solid transparent;
     margin-right: 0;
@@ -469,17 +469,20 @@ QPushButton#add-tab-btn:hover {{
     color: {text};
 }}
 
-QTabBar::close-button {{
-    subcontrol-position: right;
-    image: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 6px;
+QPushButton#tab-close-btn {{
     background-color: transparent;
+    color: {faint};
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 0;
+    margin-left: 6px;
 }}
 
-QTabBar::close-button:hover {{
+QPushButton#tab-close-btn:hover {{
     background-color: {overlay};
+    color: {text};
 }}
 
 /* SQL Editor */

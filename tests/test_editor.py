@@ -126,3 +126,26 @@ def test_context_menu_labels_reflect_pin_state(qapp, isolated_settings):
     assert panel._context_menu_labels_for_index(0)[3] == "Pin Tab"
     panel._toggle_pin(0)
     assert panel._context_menu_labels_for_index(0)[3] == "Unpin Tab"
+
+
+def test_run_selection_normalizes_multiline_sql_after_format(qapp, isolated_settings):
+    panel = EditorPanel()
+    panel.restore_tabs("conn-run-selection")
+    editor = panel.current_editor()
+    assert editor is not None
+
+    editor.setPlainText("select id,\nname from users where id = 1;")
+    panel._on_format()
+
+    cursor = editor.textCursor()
+    cursor.select(cursor.SelectionType.Document)
+    editor.setTextCursor(cursor)
+
+    submitted: list[str] = []
+    panel.query_submitted.connect(submitted.append)
+    panel._on_run_selection()
+
+    assert submitted
+    assert "\u2029" not in submitted[0]
+    assert "\u2028" not in submitted[0]
+    assert "\n" in submitted[0]
