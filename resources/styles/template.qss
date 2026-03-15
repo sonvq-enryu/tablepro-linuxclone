@@ -1,0 +1,1666 @@
+/* ===== TableFree Dark Theme (Catppuccin Mocha inspired) ===== */
+
+/* --- Base --- */
+QMainWindow {{
+    background-color: {base};
+    color: {text};
+}}
+
+QWidget {{
+    color: {text};
+    font-family: "Inter", "Segoe UI", "Roboto", sans-serif;
+    font-size: 13px;
+}}
+
+/* --- Menu Bar --- */
+QMenuBar {{
+    background-color: {deep};
+    color: {text};
+    border-bottom: 1px solid {overlay};
+    padding: 2px 4px;
+    font-size: 13px;
+}}
+
+QMenuBar::item {{
+    padding: 6px 12px;
+    border-radius: 6px;
+    margin: 2px 1px;
+}}
+
+QMenuBar::item:selected {{
+    background-color: {overlay};
+}}
+
+QMenuBar::item:pressed {{
+    background-color: {border};
+}}
+
+/* --- Menus --- */
+QMenu {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 8px;
+    padding: 6px 4px;
+}}
+
+QMenu::item {{
+    padding: 8px 36px 8px 16px;
+    border-radius: 6px;
+    margin: 1px 4px;
+}}
+
+QMenu::item:selected {{
+    background-color: {overlay};
+    color: {secondary};
+}}
+
+QMenu::separator {{
+    height: 1px;
+    background-color: {overlay};
+    margin: 4px 16px;
+}}
+
+QMenu::item:disabled {{
+    color: {faint};
+}}
+
+/* --- Status Bar --- */
+QStatusBar {{
+    background-color: {deep};
+    color: {muted};
+    border-top: 1px solid {overlay};
+    padding: 3px 12px;
+    font-size: 12px;
+    min-height: 24px;
+}}
+
+QStatusBar QLabel {{
+    color: {muted};
+    font-size: 12px;
+    background: transparent;
+}}
+
+QLabel#status-connection {{
+    color: {error};
+    font-size: 12px;
+    padding: 0 4px;
+}}
+
+QLabel#status-version {{
+    color: {faint};
+    font-size: 11px;
+    padding: 0 4px;
+}}
+
+/* --- Splitter --- */
+QSplitter::handle {{
+    background-color: {overlay};
+}}
+
+QSplitter::handle:horizontal {{
+    width: 3px;
+    margin: 0;
+}}
+
+QSplitter::handle:vertical {{
+    height: 3px;
+    margin: 0;
+}}
+
+QSplitter::handle:hover {{
+    background-color: {secondary};
+}}
+
+QSplitter::handle:pressed {{
+    background-color: {splitter_pressed};
+}}
+
+/* ====================================================
+   MAIN TOOLBAR
+   ==================================================== */
+
+QWidget#main-toolbar {{
+    background-color: {surface};
+    border-bottom: 1px solid {overlay};
+}}
+
+QPushButton#main-toolbar-btn {{
+    background-color: transparent;
+    color: {subtext};
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+}}
+
+QPushButton#main-toolbar-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+QPushButton#main-toolbar-btn:pressed {{
+    background-color: {border};
+}}
+
+QFrame#main-toolbar-separator {{
+    background-color: {overlay};
+    border: none;
+    max-width: 1px;
+}}
+
+/* ====================================================
+   SIDEBAR
+   ==================================================== */
+
+QWidget#sidebar-panel {{
+    background-color: {surface};
+    border-right: 1px solid {overlay};
+}}
+
+QWidget#sidebar-header {{
+    background-color: {surface};
+    border-bottom: 1px solid {overlay};
+}}
+
+QLabel#sidebar-title {{
+    color: {text};
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    background: transparent;
+}}
+
+QLabel#sidebar-connection-status {{
+    border-radius: 4px;
+    background-color: {error};
+}}
+
+QLabel#sidebar-connection-status[connected="true"] {{
+    background-color: {primary};
+}}
+
+QLabel#connection-badge-inactive {{
+    color: {error};
+    font-size: 11px;
+    background: transparent;
+}}
+
+/* Connection Dropdown */
+QComboBox#connection-combo {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 500;
+}}
+
+QComboBox#connection-combo:hover {{
+    border-color: {border};
+}}
+
+QComboBox#connection-combo::drop-down {{
+    border: none;
+    width: 20px;
+}}
+
+QComboBox#connection-combo::down-arrow {{
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 3px solid {subtext};
+    margin-right: 6px;
+}}
+
+/* Sidebar Header Icon Buttons */
+QPushButton#sidebar-icon-btn {{
+    background-color: transparent;
+    color: {muted};
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+}}
+
+QPushButton#sidebar-icon-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+/* Search */
+QWidget#search-container {{
+    background-color: {surface};
+}}
+
+QLineEdit#sidebar-search {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    selection-background-color: {border};
+}}
+
+QLineEdit#sidebar-search:focus {{
+    border: 1px solid {secondary};
+}}
+
+QLineEdit#sidebar-search::placeholder {{
+    color: {faint};
+}}
+
+/* Separator */
+QFrame#sidebar-separator {{
+    background-color: {overlay};
+    border: none;
+    max-height: 1px;
+}}
+
+/* Tree */
+QTreeWidget#schema-tree {{
+    background-color: {surface};
+    color: {text};
+    border: none;
+    font-size: 13px;
+    padding: 4px 0;
+    outline: 0;
+}}
+
+QTreeWidget#schema-tree::item {{
+    padding: 7px 10px;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
+    margin: 0 6px;
+}}
+
+QTreeWidget#schema-tree::item:hover {{
+    background-color: {base};
+}}
+
+QTreeWidget#schema-tree::item:selected {{
+    background-color: {overlay};
+    color: {secondary};
+    border-left: 2px solid {secondary};
+}}
+
+QTreeWidget#schema-tree::branch {{
+    background-color: {surface};
+}}
+
+QTreeWidget#schema-tree::branch:has-children:closed {{
+    image: none;
+    border-image: none;
+}}
+
+QTreeWidget#schema-tree::branch:has-children:open {{
+    image: none;
+    border-image: none;
+}}
+
+/* Footer */
+QLabel#sidebar-footer {{
+    color: {faint};
+    font-size: 11px;
+    padding: 12px;
+    background: transparent;
+}}
+
+/* ====================================================
+   EDITOR
+   ==================================================== */
+
+QWidget#editor-panel {{
+    background-color: {base};
+}}
+
+/* Toolbar */
+QWidget#editor-toolbar {{
+    background-color: {surface};
+    border-bottom: 1px solid {overlay};
+}}
+
+QLabel#editor-spinner {{
+    color: {secondary};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QPushButton#toolbar-btn-primary {{
+    background-color: {primary};
+    color: {white};
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+}}
+
+QPushButton#toolbar-btn-primary:hover {{
+    background-color: {primary_hover};
+}}
+
+QPushButton#toolbar-btn-primary:pressed {{
+    background-color: {primary_pressed};
+}}
+
+QPushButton#toolbar-btn {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+}}
+
+QPushButton#toolbar-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+    border-color: {border};
+}}
+
+QPushButton#toolbar-btn:pressed {{
+    background-color: {border};
+}}
+
+QPushButton#toolbar-btn:disabled {{
+    color: {border};
+    border-color: {input_hover};
+    background-color: {input_bg};
+}}
+
+QPushButton#toolbar-btn-primary:disabled {{
+    background-color: {primary_deep};
+    color: {success_soft};
+}}
+
+/* Explain Button */
+QPushButton#toolbar-btn-explain {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+}}
+
+QPushButton#toolbar-btn-explain:hover {{
+    background-color: {overlay};
+    color: {text};
+    border-color: {border};
+}}
+
+QFrame#toolbar-separator {{
+    background-color: {overlay};
+    border: none;
+    max-width: 1px;
+}}
+
+QLabel#editor-info {{
+    color: {faint};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QLabel#editor-cursor-info {{
+    color: {muted};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QWidget#editor-status-bar {{
+    background-color: {surface};
+    border-top: 1px solid {overlay};
+}}
+
+QLabel#editor-status-text,
+QLabel#editor-status-connection {{
+    color: {muted};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QFrame#editor-separator {{
+    background-color: {overlay};
+    border: none;
+    max-height: 1px;
+}}
+
+/* Tab widget (editor) */
+QTabWidget#editor-tabs::pane {{
+    border: none;
+    background-color: {base};
+}}
+
+QTabWidget#editor-tabs > QTabBar::tab {{
+    background-color: {surface};
+    color: {muted};
+    padding: 8px 20px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-right: 0;
+    min-width: 120px;
+    font-size: 12px;
+}}
+
+QTabWidget#editor-tabs > QTabBar::tab:selected {{
+    background-color: {base};
+    color: {text};
+    border-bottom: 3px solid {secondary};
+}}
+
+QTabWidget#editor-tabs > QTabBar::tab:hover:!selected {{
+    background-color: {base};
+    color: {subtext};
+}}
+
+QPushButton#add-tab-btn {{
+    background-color: transparent;
+    color: {muted};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    margin: 4px;
+}}
+
+QPushButton#add-tab-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+QTabBar::close-button {{
+    subcontrol-position: right;
+    image: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    background-color: transparent;
+}}
+
+QTabBar::close-button:hover {{
+    background-color: {overlay};
+}}
+
+/* SQL Editor */
+QPlainTextEdit#sql-editor {{
+    background-color: {base};
+    color: {text};
+    border: none;
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+    font-size: 14px;
+    padding: 12px 16px;
+    selection-background-color: {selection_rgba_strong};
+    selection-color: {text};
+    line-height: 1.6;
+}}
+
+/* ====================================================
+   EDIT TOOLBAR
+   ==================================================== */
+
+QWidget#edit-toolbar {{
+    background-color: {surface};
+    border-bottom: 1px solid {overlay};
+}}
+
+QPushButton#edit-btn {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+}}
+
+QPushButton#edit-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+QPushButton#commit-btn {{
+    background-color: {primary};
+    color: {white};
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+}}
+
+QPushButton#commit-btn:hover {{
+    background-color: {primary_hover};
+}}
+
+QLabel#pending-label {{
+    color: {muted};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QLabel#edit-context-label {{
+    color: {subtext};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QPushButton#filter-toggle-btn {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+}}
+
+QPushButton#filter-toggle-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+/* ====================================================
+   RESULT VIEW
+   ==================================================== */
+
+QWidget#result-panel {{
+    background-color: {base};
+}}
+
+/* Result tabs */
+QTabWidget#result-tabs::pane {{
+    border: none;
+    background-color: {base};
+}}
+
+QTabWidget#result-tabs > QTabBar::tab {{
+    background-color: {surface};
+    color: {muted};
+    padding: 6px 18px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 12px;
+}}
+
+QTabWidget#result-tabs > QTabBar::tab:selected {{
+    background-color: {base};
+    color: {text};
+    border-bottom: 3px solid {secondary};
+}}
+
+QTabWidget#result-tabs > QTabBar::tab:hover:!selected {{
+    color: {subtext};
+}}
+
+/* Info bar */
+QWidget#result-info-bar {{
+    background-color: {surface};
+    border-bottom: 1px solid {overlay};
+}}
+
+QLabel#result-chip {{
+    color: {subtext};
+    font-size: 11px;
+    background-color: {hover};
+    border: 1px solid {overlay};
+    border-radius: 10px;
+    padding: 2px 8px;
+}}
+
+QPushButton#result-action-link {{
+    color: {primary};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QPushButton#result-action-link:hover {{
+    color: {primary_hover};
+}}
+
+/* Data table */
+QTableWidget#result-table {{
+    background-color: {base};
+    alternate-background-color: {surface};
+    color: {text};
+    gridline-color: {overlay};
+    border: none;
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 12px;
+    selection-background-color: {selection_rgba};
+    selection-color: {text};
+    outline: 0;
+}}
+
+QTableWidget#result-table::item {{
+    padding: 4px 10px;
+    border-bottom: 1px solid {overlay};
+}}
+
+QTableWidget#result-table::item:selected {{
+    background-color: {selection_rgba};
+}}
+
+QHeaderView::section {{
+    background-color: {surface};
+    color: {subtext};
+    border: none;
+    border-bottom: 2px solid {overlay};
+    border-right: 1px solid {overlay};
+    padding: 6px 10px;
+    font-weight: 600;
+    font-size: 12px;
+}}
+
+QHeaderView::section:hover {{
+    background-color: {base};
+    color: {text};
+}}
+
+/* Pagination bar */
+QWidget#pagination-bar {{
+    background-color: {surface};
+    border-top: 1px solid {overlay};
+}}
+
+QComboBox#page-size-combo {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    min-width: 60px;
+}}
+
+QComboBox#page-size-combo:hover {{
+    border-color: {border};
+}}
+
+QComboBox#page-size-combo::drop-down {{
+    border: none;
+    width: 16px;
+}}
+
+QComboBox#page-size-combo::down-arrow {{
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 3px solid {subtext};
+    margin-right: 4px;
+}}
+
+QPushButton#page-btn {{
+    background-color: {base};
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 11px;
+    min-width: 48px;
+}}
+
+QPushButton#page-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+QPushButton#page-btn:disabled {{
+    background-color: transparent;
+    color: {border};
+    border-color: {overlay};
+}}
+
+QLabel#page-info {{
+    color: {muted};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QLabel#result-empty-state {{
+    color: {muted};
+    font-size: 12px;
+    background-color: {base};
+}}
+
+QProgressBar#query-progress {{
+    border: none;
+    background: {surface};
+}}
+
+QProgressBar#query-progress::chunk {{
+    background-color: {secondary};
+}}
+
+/* Messages / History */
+QPlainTextEdit#messages-output,
+QPlainTextEdit#history-output {{
+    background-color: {base};
+    color: {subtext};
+    border: none;
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 12px;
+    padding: 10px 14px;
+}}
+
+/* History panel */
+QWidget#history-panel {{
+    background-color: {base};
+}}
+
+QLineEdit#history-search,
+QComboBox#history-filter {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 6px 10px;
+}}
+
+QLineEdit#history-search:focus,
+QComboBox#history-filter:focus {{
+    border-color: {secondary};
+}}
+
+QTableWidget#history-table {{
+    background-color: {base};
+    alternate-background-color: {surface};
+    color: {text};
+    gridline-color: {overlay};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+}}
+
+QPushButton#history-clear-btn,
+QPushButton#history-load-more {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+}}
+
+QPushButton#history-clear-btn:hover,
+QPushButton#history-load-more:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+/* Filter panel */
+QPushButton#filter-remove-btn {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+}}
+
+QPushButton#filter-remove-btn:hover {{
+    background-color: {overlay};
+    color: {error};
+}}
+
+QFrame#filter-sep {{
+    background-color: {overlay};
+    border: none;
+    max-height: 1px;
+}}
+
+QPushButton#filter-apply-btn {{
+    background-color: {primary};
+    color: {white};
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+}}
+
+QPushButton#filter-apply-btn:hover {{
+    background-color: {primary_hover};
+}}
+
+/* Table structure */
+QTableWidget#structure-columns-table,
+QTableWidget#structure-indexes-table,
+QTableWidget#structure-fk-table {{
+    background-color: {base};
+    alternate-background-color: {surface};
+    color: {text};
+    gridline-color: {overlay};
+    border: none;
+}}
+
+QPlainTextEdit#structure-ddl-editor {{
+    background-color: {base};
+    color: {text};
+    border: none;
+}}
+
+QLabel#structure-loading {{
+    color: {subtext};
+    font-size: 12px;
+    padding: 8px;
+}}
+
+/* SQL preview dialog */
+QLabel#dialog-header {{
+    color: {text};
+    font-size: 16px;
+    font-weight: 700;
+    background: transparent;
+}}
+
+QLabel#warning-banner {{
+    color: {warning};
+    background-color: {warning_rgba};
+    border: 1px solid {warning};
+    border-radius: 6px;
+    padding: 8px 10px;
+}}
+
+QLabel#statement-count {{
+    color: {muted};
+    font-size: 12px;
+}}
+
+QPushButton#primary-button {{
+    background-color: {primary};
+    color: {white};
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-weight: 600;
+}}
+
+QPushButton#primary-button:hover {{
+    background-color: {primary_hover};
+}}
+
+QFrame#edit-sep {{
+    background-color: {overlay};
+    border: none;
+    max-width: 1px;
+}}
+
+/* ====================================================
+   SCROLLBARS
+   ==================================================== */
+
+QScrollBar:vertical {{
+    background-color: transparent;
+    width: 8px;
+    margin: 0;
+    border-radius: 4px;
+}}
+
+QScrollBar::handle:vertical {{
+    background-color: {border};
+    min-height: 30px;
+    border-radius: 4px;
+}}
+
+QScrollBar::handle:vertical:hover {{
+    background-color: {faint};
+}}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {{
+    height: 0;
+}}
+
+QScrollBar:horizontal {{
+    background-color: transparent;
+    height: 8px;
+    margin: 0;
+    border-radius: 4px;
+}}
+
+QScrollBar::handle:horizontal {{
+    background-color: {border};
+    min-width: 30px;
+    border-radius: 4px;
+}}
+
+QScrollBar::handle:horizontal:hover {{
+    background-color: {faint};
+}}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {{
+    width: 0;
+}}
+
+/* ====================================================
+   TOOLTIPS
+   ==================================================== */
+
+QToolTip {{
+    background-color: {overlay};
+    color: {text};
+    border: 1px solid {border};
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+}}
+
+/* ====================================================
+   CONNECTION DIALOG
+   ==================================================== */
+
+QDialog#connection-dialog {{
+    background-color: {base};
+}}
+
+/* Quick Connect Bar */
+QWidget#quick-connect-bar {{
+    background-color: {surface};
+    border-bottom: 1px solid {overlay};
+}}
+
+QLabel#quick-connect-icon {{
+    color: {primary};
+    font-size: 16px;
+    background: transparent;
+}}
+
+QLineEdit#quick-connect-input {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+}}
+
+QLineEdit#quick-connect-input:focus {{
+    border: 1px solid {secondary};
+}}
+
+QLineEdit#quick-connect-input::placeholder {{
+    color: {faint};
+    font-style: italic;
+}}
+
+QPushButton#quick-connect-btn {{
+    background-color: {primary};
+    color: {white};
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+}}
+
+QPushButton#quick-connect-btn:hover {{
+    background-color: {primary_hover};
+}}
+
+QPushButton#quick-connect-btn:pressed {{
+    background-color: {primary_pressed};
+}}
+
+/* Driver Select */
+QComboBox#driver-select {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+    min-width: 160px;
+}}
+
+QComboBox#driver-select:hover {{
+    border-color: {border};
+}}
+
+QComboBox#driver-select:focus {{
+    border-color: {secondary};
+}}
+
+QComboBox#driver-select::drop-down {{
+    border: none;
+    width: 24px;
+}}
+
+QComboBox#driver-select::down-arrow {{
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid {subtext};
+    margin-right: 8px;
+}}
+
+/* Driver Selection Cards */
+QPushButton#driver-card {{
+    background-color: {hover};
+    color: {subtext};
+    border: 2px solid {overlay};
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 90px;
+    min-height: 60px;
+}}
+
+QPushButton#driver-card:hover {{
+    background-color: {pressed};
+    border-color: {border};
+    color: {text};
+}}
+
+QPushButton#driver-card-selected {{
+    background-color: {hover};
+    color: {text};
+    border: 2px solid {secondary};
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 90px;
+    min-height: 60px;
+}}
+
+/* Saved Connections Combo */
+QComboBox#saved-connections-combo {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+}}
+
+QComboBox#saved-connections-combo:hover {{
+    border-color: {border};
+}}
+
+/* Connection Name Input */
+QLineEdit#connection-name-input {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 500;
+}}
+
+QLineEdit#connection-name-input:focus {{
+    border-color: {secondary};
+}}
+
+QLineEdit#connection-name-input::placeholder {{
+    color: {faint};
+}}
+
+/* Host & Port Inputs */
+QLineEdit#host-input {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+}}
+
+QLineEdit#host-input:focus {{
+    border-color: {secondary};
+}}
+
+QLineEdit#host-input::placeholder {{
+    color: {faint};
+}}
+
+QSpinBox#port-input {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+}}
+
+QSpinBox#port-input:focus {{
+    border-color: {secondary};
+}}
+
+QDialog#connection-dialog QSpinBox::up-button,
+QDialog#connection-dialog QSpinBox::down-button {{
+    background-color: {hover};
+    border: none;
+    border-left: 1px solid {overlay};
+    width: 20px;
+}}
+
+QDialog#connection-dialog QSpinBox::up-button:hover,
+QDialog#connection-dialog QSpinBox::down-button:hover {{
+    background-color: {overlay};
+}}
+
+QDialog#connection-dialog QSpinBox::up-arrow {{
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 4px solid {subtext};
+}}
+
+QDialog#connection-dialog QSpinBox::down-arrow {{
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid {subtext};
+}}
+
+QLineEdit#database-input,
+QLineEdit#username-input {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+}}
+
+QLineEdit#database-input:focus,
+QLineEdit#username-input:focus {{
+    border-color: {secondary};
+}}
+
+QLineEdit#database-input::placeholder,
+QLineEdit#username-input::placeholder {{
+    color: {faint};
+}}
+
+QLineEdit#password-input {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+}}
+
+QLineEdit#password-input:focus {{
+    border-color: {secondary};
+}}
+
+QLineEdit#password-input::placeholder {{
+    color: {faint};
+}}
+
+/* Advanced Toggle */
+QPushButton#advanced-toggle {{
+    background-color: transparent;
+    color: {subtext};
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    text-align: left;
+}}
+
+QPushButton#advanced-toggle:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+/* Advanced Panel */
+QWidget#advanced-panel {{
+    background-color: {surface};
+    border: 1px solid {overlay};
+    border-radius: 8px;
+    padding: 10px;
+}}
+
+QWidget#advanced-section-card {{
+    background-color: {base};
+    border: 1px solid {overlay};
+    border-radius: 7px;
+}}
+
+QLabel#advanced-section-title {{
+    color: {subtext};
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    background: transparent;
+}}
+
+QLabel#advanced-section-subtitle {{
+    color: {subtext_soft};
+    font-size: 12px;
+    background: transparent;
+    padding-bottom: 2px;
+}}
+
+QFrame#advanced-separator {{
+    background-color: {overlay};
+    border: none;
+    max-height: 1px;
+}}
+
+QWidget#ssh-fields-container {{
+    background-color: transparent;
+    border-left: 2px solid {overlay};
+    margin-left: 6px;
+    padding-left: 2px;
+}}
+
+QWidget#ssh-fields-container[active="true"] {{
+    border-left: 2px solid {secondary};
+}}
+
+QWidget#advanced-suboption-row {{
+    background-color: transparent;
+}}
+
+QComboBox#ssh-profile-combo {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+}}
+
+QComboBox#ssh-profile-combo:hover {{
+    border-color: {border};
+}}
+
+QWidget#ssh-summary-widget {{
+    background-color: {hover};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+}}
+
+QPushButton#ssh-manage-btn {{
+    background-color: {overlay};
+    color: {subtext};
+    border: 1px solid {border};
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+}}
+
+QPushButton#ssh-manage-btn:hover {{
+    background-color: {border};
+    color: {text};
+}}
+
+QWidget#auth-method-group {{
+    background-color: {hover};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+}}
+
+/* Checkboxes */
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox {{
+    background-color: transparent;
+    color: {text};
+    font-size: 13px;
+    spacing: 8px;
+}}
+
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox::indicator {{
+    width: 18px;
+    height: 18px;
+    border: 1px solid {border};
+    border-radius: 4px;
+    background-color: {surface};
+}}
+
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox::indicator:checked {{
+    background-color: {secondary};
+    border-color: {secondary};
+}}
+
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox::indicator:hover {{
+    border-color: {secondary};
+}}
+
+QDialog#connection-dialog QWidget#advanced-panel QCheckBox:disabled {{
+    color: {faint};
+}}
+
+/* SSH Profile Dialog */
+QDialog#ssh-profile-dialog {{
+    background-color: {base};
+    min-width: 820px;
+    min-height: 520px;
+}}
+
+QListWidget#ssh-profile-list {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+}}
+
+QWidget#ssh-profile-form {{
+    background-color: {base};
+    border-radius: 8px;
+}}
+
+QDialog#ssh-profile-dialog QLineEdit,
+QDialog#ssh-profile-dialog QSpinBox,
+QDialog#ssh-profile-dialog QComboBox {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+    margin: 2px 0;
+}}
+
+QDialog#ssh-profile-dialog QLineEdit:focus,
+QDialog#ssh-profile-dialog QSpinBox:focus,
+QDialog#ssh-profile-dialog QComboBox:focus {{
+    border-color: {secondary};
+}}
+
+/* Action Buttons */
+QPushButton#dialog-action-btn-secondary {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+}}
+
+QPushButton#dialog-action-btn-secondary:hover {{
+    background-color: {overlay};
+    color: {text};
+    border-color: {border};
+}}
+
+QPushButton#dialog-action-btn-secondary:pressed {{
+    background-color: {border};
+}}
+
+/* Favorite Button */
+QPushButton#favorite-btn {{
+    background-color: transparent;
+    color: {faint};
+    border: none;
+    border-radius: 4px;
+    font-size: 18px;
+}}
+
+QPushButton#favorite-btn:hover {{
+    background-color: {overlay};
+    color: {warning_strong};
+}}
+
+QPushButton#favorite-btn:checked,
+QPushButton#favorite-btn:pressed {{
+    color: {warning_strong};
+}}
+
+/* Icon Buttons */
+QPushButton#icon-btn-small {{
+    background-color: transparent;
+    color: {muted};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    font-size: 12px;
+}}
+
+QPushButton#icon-btn-small:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+/* Connection Actions */
+QPushButton#connection-action-btn {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+}}
+
+QPushButton#connection-action-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+/* Labels */
+QWidget#connection-list-panel {{
+    background-color: {surface};
+    border-right: 1px solid {overlay};
+    border-radius: 8px;
+}}
+
+QLabel#connection-list-title {{
+    color: {text};
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}}
+
+QListWidget#connection-list {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    outline: 0;
+    padding: 4px;
+}}
+
+QListWidget#connection-list::item {{
+    padding: 2px;
+    border-radius: 4px;
+    margin: 2px 3px;
+}}
+
+QListWidget#connection-list::item:hover {{
+    background-color: {base};
+}}
+
+QListWidget#connection-list::item:selected {{
+    background-color: {overlay};
+    color: {secondary};
+    border: 1px solid {secondary};
+}}
+
+QWidget#connection-item-widget {{
+    background: transparent;
+}}
+
+QLabel#driver-icon {{
+    background: transparent;
+}}
+
+QLabel#driver-badge-pg {{
+    background-color: {secondary};
+    color: {white};
+    border-radius: 9px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 700;
+}}
+
+QLabel#driver-badge-my {{
+    background-color: {warning};
+    color: {deep};
+    border-radius: 9px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 700;
+}}
+
+QLabel#conn-item-name {{
+    color: {text};
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+}}
+
+QLabel#conn-item-detail {{
+    color: {muted};
+    font-size: 11px;
+    background: transparent;
+}}
+
+QWidget#connection-item-widget[selected="true"] QLabel#conn-item-name {{
+    color: {white};
+}}
+
+QWidget#connection-item-widget[selected="true"] QLabel#conn-item-detail {{
+    color: {text};
+}}
+
+QLineEdit#connection-search {{
+    background-color: {base};
+    color: {text};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 12px;
+}}
+
+QLineEdit#connection-search:focus {{
+    border-color: {secondary};
+}}
+
+QLineEdit#connection-search::placeholder {{
+    color: {faint};
+}}
+
+QLineEdit:focus,
+QSpinBox:focus,
+QComboBox:focus {{
+    border: 1px solid {secondary};
+}}
+
+QWidget#connection-form-panel {{
+    background-color: {base};
+    border-radius: 8px;
+}}
+
+QScrollArea#connection-form-scroll {{
+    background-color: {base};
+    border: none;
+}}
+
+QWidget#connection-form-scroll-content {{
+    background-color: {base};
+}}
+
+QDialog QPushButton {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+}}
+
+QDialog QPushButton:hover {{
+    background-color: {overlay};
+    color: {text};
+    border-color: {border};
+}}
+
+QDialog QPushButton:pressed {{
+    background-color: {border};
+}}
+
+QPushButton#dialog-action-btn-primary {{
+    background-color: {primary};
+    color: {white};
+    border: none;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+}}
+
+QPushButton#dialog-action-btn-primary:hover {{
+    background-color: {primary_hover};
+}}
+
+QPushButton#dialog-action-btn-primary:pressed {{
+    background-color: {primary_pressed};
+}}
+
+/* Connection Dialog Title */
+QLabel#connection-dialog-title {{
+    color: {text};
+    font-size: 18px;
+    font-weight: 700;
+    background: transparent;
+}}
+
+/* Form Labels */
+QLabel#form-label {{
+    color: {muted};
+    font-size: 11px;
+    font-weight: 500;
+    background: transparent;
+}}
+
+/* Password Toggle */
+QPushButton#password-toggle-btn {{
+    background-color: {overlay};
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+}}
+
+QPushButton#password-toggle-btn:hover {{
+    background-color: {border};
+    color: {text};
+}}
+
+QWidget#password-row {{
+    background-color: transparent;
+}}
+
+/* Cancel Button */
+QPushButton#dialog-action-btn-cancel {{
+    background-color: transparent;
+    color: {muted};
+    border: 1px solid {overlay};
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+}}
+
+QPushButton#dialog-action-btn-cancel:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+/* Connection New/Delete Buttons */
+QPushButton#connection-new-btn,
+QPushButton#connection-delete-btn {{
+    background-color: transparent;
+    color: {subtext};
+    border: 1px solid {overlay};
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+}}
+
+QPushButton#connection-new-btn:hover,
+QPushButton#connection-delete-btn:hover {{
+    background-color: {overlay};
+    color: {text};
+}}
+
+QLabel#conn-status-label {{
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+}}
+
+QLabel#status-connection-active {{
+    color: {primary};
+    font-size: 12px;
+    padding: 0 4px;
+}}

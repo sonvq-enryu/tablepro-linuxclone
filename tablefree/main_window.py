@@ -2,8 +2,8 @@
 
 import time
 
-from PySide6.QtCore import QObject, Qt
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtCore import QObject, QSettings, Qt
+from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -22,7 +22,7 @@ from tablefree.db.connection_store import ConnectionStore
 from tablefree.models import QueryResult
 from tablefree.resource_path import resources_dir
 from tablefree.services import QueryHistoryStore
-from tablefree.theme import set_dark, set_light
+from tablefree.theme import current_scheme, schemes as theme_schemes, set_scheme
 from tablefree.widgets.connection_dialog import ConnectionDialog
 from tablefree.widgets.editor import EditorPanel
 from tablefree.widgets.export_dialog import ExportDialog
@@ -59,7 +59,15 @@ class MainWindow(QMainWindow):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._is_dark = True  # start with dark theme
+        self._settings = QSettings()
+        self._scheme_order = [scheme.id for scheme in theme_schemes()]
+        saved_scheme = self._settings.value(
+            "appearance/color_scheme", "catppuccin_mocha", type=str
+        )
+        self._scheme_id = (
+            saved_scheme if saved_scheme in self._scheme_order else "catppuccin_mocha"
+        )
+        self._scheme_actions: dict[str, QAction] = {}
         self._conn_manager = ConnectionManager()
         self._connection_store = ConnectionStore()
         self._history = QueryHistoryStore()
@@ -177,11 +185,25 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
-        toggle_theme = QAction("Toggle Theme", self)
-        toggle_theme.setShortcut("Ctrl+T")
-        toggle_theme.setStatusTip("Switch between dark and light themes")
-        toggle_theme.triggered.connect(self._toggle_theme)
-        view_menu.addAction(toggle_theme)
+        cycle_scheme = QAction("Cycle Color Scheme", self)
+        cycle_scheme.setShortcut("Ctrl+T")
+        cycle_scheme.setStatusTip("Cycle through available color schemes")
+        cycle_scheme.triggered.connect(self._cycle_scheme)
+        view_menu.addAction(cycle_scheme)
+
+        scheme_menu = view_menu.addMenu("Color Scheme")
+        scheme_group = QActionGroup(self)
+        scheme_group.setExclusive(True)
+
+        for scheme in theme_schemes():
+            action = QAction(scheme.name, self)
+            action.setCheckable(True)
+            action.triggered.connect(
+                lambda checked, sid=scheme.id: checked and self._set_scheme(sid)
+            )
+            scheme_group.addAction(action)
+            scheme_menu.addAction(action)
+            self._scheme_actions[scheme.id] = action
 
         show_history = QAction("Show Query History", self)
         show_history.setShortcut("Ctrl+Y")
@@ -326,24 +348,42 @@ class MainWindow(QMainWindow):
 
     # ── Theming ──────────────────────────────────────────────
 
-    def _toggle_theme(self) -> None:
-        self._is_dark = not self._is_dark
+    def _cycle_scheme(self) -> None:
+        if not self._scheme_order:
+            return
+
+        try:
+            index = self._scheme_order.index(self._scheme_id)
+        except ValueError:
+            index = 0
+        next_index = (index + 1) % len(self._scheme_order)
+        self._set_scheme(self._scheme_order[next_index])
+
+    def _set_scheme(self, scheme_id: str) -> None:
+        if scheme_id not in self._scheme_order:
+            return
+        self._scheme_id = scheme_id
+        self._settings.setValue("appearance/color_scheme", scheme_id)
         self._apply_theme()
 
     def _apply_theme(self) -> None:
-        if self._is_dark:
-            set_dark()
-        else:
-            set_light()
-
-        theme_file = "dark.qss" if self._is_dark else "light.qss"
-        qss_path = resources_dir() / "styles" / theme_file
+        set_scheme(self._scheme_id)
+        qss_path = resources_dir() / "styles" / "template.qss"
 
         if qss_path.exists():
-            stylesheet = qss_path.read_text(encoding="utf-8")
+            template = qss_path.read_text(encoding="utf-8")
+            stylesheet = template.format_map(current_scheme().qss)
             self.setStyleSheet(stylesheet)
         else:
             self.setStyleSheet("")
+
+        for scheme_id, action in self._scheme_actions.items():
+            is_active = scheme_id == self._scheme_id
+            if action.isChecked() == is_active:
+                continue
+            old_state = action.blockSignals(True)
+            action.setChecked(is_active)
+            action.blockSignals(old_state)
 
         self._refresh_theme_aware_widgets()
 
