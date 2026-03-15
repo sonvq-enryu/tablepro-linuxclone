@@ -1,0 +1,9 @@
+Package: tablefree
+Version: __VERSION__
+Section: database
+Priority: optional
+Architecture: __ARCH__
+Depends: libxcb-cursor0
+Maintainer: TableFree <tablefree@example.com>
+Description: Free desktop database management GUI
+ Supports MySQL and PostgreSQL connections.

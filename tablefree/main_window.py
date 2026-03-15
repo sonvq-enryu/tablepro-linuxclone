@@ -1,7 +1,6 @@
 """MainWindow — Core application window with three-panel layout."""
 
 import time
-from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
@@ -21,6 +20,7 @@ from PySide6.QtWidgets import (
 from tablefree.db.manager import ConnectionManager
 from tablefree.db.connection_store import ConnectionStore
 from tablefree.models import QueryResult
+from tablefree.resource_path import resources_dir
 from tablefree.services import QueryHistoryStore
 from tablefree.theme import set_dark, set_light
 from tablefree.widgets.connection_dialog import ConnectionDialog
@@ -30,10 +30,6 @@ from tablefree.widgets.import_dialog import ImportDialog
 from tablefree.widgets.result_view import ResultView
 from tablefree.widgets.sidebar import Sidebar
 from tablefree.workers.query_worker import QueryWorker
-
-_ROOT = Path(__file__).resolve().parent.parent
-_RESOURCES = _ROOT / "resources"
-
 
 class MainWindow(QMainWindow):
     """Three-panel main window: sidebar | editor / results."""
@@ -63,7 +59,7 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
         self._center_on_screen()
 
-        icon_path = _RESOURCES / "icons" / "app_icon.png"
+        icon_path = resources_dir() / "icons" / "app_icon.png"
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
@@ -317,7 +313,7 @@ class MainWindow(QMainWindow):
             set_light()
 
         theme_file = "dark.qss" if self._is_dark else "light.qss"
-        qss_path = _RESOURCES / "styles" / theme_file
+        qss_path = resources_dir() / "styles" / theme_file
 
         if qss_path.exists():
             stylesheet = qss_path.read_text(encoding="utf-8")

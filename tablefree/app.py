@@ -1,13 +1,11 @@
 """Application factory — creates and configures the QApplication."""
 
 import sys
-from pathlib import Path
 
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
-_ROOT = Path(__file__).resolve().parent.parent
-_RESOURCES = _ROOT / "resources"
+from tablefree.resource_path import resources_dir
 
 
 def create_app(argv: list[str] | None = None) -> QApplication:
@@ -20,7 +18,7 @@ def create_app(argv: list[str] | None = None) -> QApplication:
     app.setOrganizationName("TableFree")
     app.setApplicationVersion("0.1.0")
 
-    icon_path = _RESOURCES / "icons" / "app_icon.png"
+    icon_path = resources_dir() / "icons" / "app_icon.png"
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 

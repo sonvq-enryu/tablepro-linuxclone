@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=TableFree
+Exec=/usr/bin/tablefree
+Icon=tablefree
+Type=Application
+Categories=Development;Database;

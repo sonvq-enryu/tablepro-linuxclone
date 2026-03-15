@@ -1,6 +1,5 @@
 """Connection dialog with two-panel connection manager UX."""
 
-from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QThreadPool
@@ -34,12 +33,10 @@ from tablefree.db.mysql_driver import MySQLDriver
 from tablefree.db.postgres_driver import PostgreSQLDriver
 from tablefree.db.ssh_config import SSHAuthMethod
 from tablefree.db.ssh_store import SSHProfileStore
+from tablefree.resource_path import resources_dir
 from tablefree.theme import current
 from tablefree.widgets.ssh_profile_dialog import SSHProfileDialog
 from tablefree.workers import QueryWorker
-
-_ROOT = Path(__file__).resolve().parents[2]
-_RESOURCES = _ROOT / "resources"
 
 
 class ConnectionDialog(QDialog):
@@ -579,7 +576,7 @@ class ConnectionDialog(QDialog):
         icon_label = QLabel()
         icon_label.setObjectName("driver-icon")
         icon_label.setFixedSize(18, 18)
-        icon_path = _RESOURCES / "icons" / icon_name
+        icon_path = resources_dir() / "icons" / icon_name
         icon_pixmap = QIcon(str(icon_path)).pixmap(18, 18) if icon_path.exists() else None
 
         if icon_pixmap and not icon_pixmap.isNull():
