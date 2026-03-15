@@ -1,14 +1,15 @@
 """Connection dialog with two-panel connection manager UX."""
 
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QThreadPool
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QFormLayout,
-    QGridLayout,
+    QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -31,6 +32,9 @@ from tablefree.db.mysql_driver import MySQLDriver
 from tablefree.db.postgres_driver import PostgreSQLDriver
 from tablefree.theme import current
 from tablefree.workers import QueryWorker
+
+_ROOT = Path(__file__).resolve().parents[2]
+_RESOURCES = _ROOT / "resources"
 
 
 class ConnectionDialog(QDialog):
@@ -95,6 +99,7 @@ class ConnectionDialog(QDialog):
 
         self._connection_list = QListWidget()
         self._connection_list.setObjectName("connection-list")
+        self._connection_list.setSpacing(2)
         self._connection_list.itemSelectionChanged.connect(
             self._on_connection_list_selected
         )
@@ -229,47 +234,103 @@ class ConnectionDialog(QDialog):
         self._advanced_widget = QWidget()
         self._advanced_widget.setObjectName("advanced-panel")
         self._advanced_widget.setVisible(False)
-        adv_layout = QFormLayout(self._advanced_widget)
-        adv_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        adv_layout = QVBoxLayout(self._advanced_widget)
         adv_layout.setSpacing(8)
         adv_layout.setContentsMargins(0, 0, 0, 0)
 
+        ssl_title = QLabel("SSL / TLS")
+        ssl_title.setObjectName("advanced-section-title")
+        adv_layout.addWidget(ssl_title)
+
         self._ssl_checkbox = QCheckBox("Use SSL/TLS")
         self._ssl_checkbox.setObjectName("ssl-checkbox")
-        adv_layout.addRow("", self._ssl_checkbox)
+        self._ssl_checkbox.toggled.connect(self._on_ssl_toggled)
+        adv_layout.addWidget(self._ssl_checkbox)
 
         self._ssl_verify_checkbox = QCheckBox("Verify server certificate")
         self._ssl_verify_checkbox.setObjectName("ssl-verify-checkbox")
         self._ssl_verify_checkbox.setChecked(True)
-        adv_layout.addRow("", self._ssl_verify_checkbox)
+        ssl_verify_row = QWidget()
+        ssl_verify_layout = QHBoxLayout(ssl_verify_row)
+        ssl_verify_layout.setContentsMargins(22, 0, 0, 0)
+        ssl_verify_layout.addWidget(self._ssl_verify_checkbox)
+        ssl_verify_layout.addStretch()
+        adv_layout.addWidget(ssl_verify_row)
+
+        separator = QFrame()
+        separator.setObjectName("advanced-separator")
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        adv_layout.addWidget(separator)
+
+        ssh_title = QLabel("SSH Tunnel")
+        ssh_title.setObjectName("advanced-section-title")
+        adv_layout.addWidget(ssh_title)
 
         self._ssh_checkbox = QCheckBox("Use SSH Tunnel")
         self._ssh_checkbox.setObjectName("ssh-checkbox")
-        adv_layout.addRow("", self._ssh_checkbox)
+        self._ssh_checkbox.toggled.connect(self._on_ssh_toggled)
+        adv_layout.addWidget(self._ssh_checkbox)
 
+        self._ssh_fields_container = QWidget()
+        self._ssh_fields_container.setObjectName("ssh-fields-container")
+        ssh_fields_layout = QVBoxLayout(self._ssh_fields_container)
+        ssh_fields_layout.setContentsMargins(16, 4, 0, 0)
+        ssh_fields_layout.setSpacing(8)
+
+        ssh_host_port_labels = QHBoxLayout()
+        ssh_host_label = QLabel("SSH Host")
+        ssh_host_label.setObjectName("form-label")
+        ssh_port_label = QLabel("SSH Port")
+        ssh_port_label.setObjectName("form-label")
+        ssh_host_port_labels.addWidget(ssh_host_label, stretch=3)
+        ssh_host_port_labels.addWidget(ssh_port_label, stretch=1)
+        ssh_fields_layout.addLayout(ssh_host_port_labels)
+
+        ssh_host_port_row = QHBoxLayout()
         self._ssh_host_input = QLineEdit()
         self._ssh_host_input.setObjectName("ssh-host-input")
         self._ssh_host_input.setPlaceholderText("SSH host")
-        adv_layout.addRow("SSH Host:", self._ssh_host_input)
+        ssh_host_port_row.addWidget(self._ssh_host_input, stretch=3)
 
         self._ssh_port_input = QSpinBox()
         self._ssh_port_input.setObjectName("ssh-port-input")
         self._ssh_port_input.setRange(1, 65535)
         self._ssh_port_input.setValue(22)
-        adv_layout.addRow("SSH Port:", self._ssh_port_input)
+        ssh_host_port_row.addWidget(self._ssh_port_input, stretch=1)
+        ssh_fields_layout.addLayout(ssh_host_port_row)
+
+        ssh_user_label = QLabel("SSH User")
+        ssh_user_label.setObjectName("form-label")
+        ssh_fields_layout.addWidget(ssh_user_label)
 
         self._ssh_user_input = QLineEdit()
         self._ssh_user_input.setObjectName("ssh-user-input")
         self._ssh_user_input.setPlaceholderText("SSH username")
-        adv_layout.addRow("SSH User:", self._ssh_user_input)
+        ssh_fields_layout.addWidget(self._ssh_user_input)
 
+        ssh_key_label = QLabel("SSH Key")
+        ssh_key_label.setObjectName("form-label")
+        ssh_fields_layout.addWidget(ssh_key_label)
+
+        ssh_key_row = QHBoxLayout()
         self._ssh_key_input = QLineEdit()
         self._ssh_key_input.setObjectName("ssh-key-input")
         self._ssh_key_input.setPlaceholderText("Path to private key file")
-        adv_layout.addRow("SSH Key:", self._ssh_key_input)
+        ssh_key_row.addWidget(self._ssh_key_input, stretch=1)
+        self._ssh_key_browse_btn = QPushButton("Browse...")
+        self._ssh_key_browse_btn.setObjectName("ssh-key-browse-btn")
+        self._ssh_key_browse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._ssh_key_browse_btn.clicked.connect(self._on_browse_ssh_key)
+        ssh_key_row.addWidget(self._ssh_key_browse_btn)
+        ssh_fields_layout.addLayout(ssh_key_row)
+
+        adv_layout.addWidget(self._ssh_fields_container)
         right_layout.addWidget(self._advanced_widget)
 
         right_layout.addStretch()
+        self._on_ssl_toggled(self._ssl_checkbox.isChecked())
+        self._on_ssh_toggled(self._ssh_checkbox.isChecked())
 
         # -- Bottom action bar
         bottom_layout = QHBoxLayout()
@@ -364,22 +425,23 @@ class ConnectionDialog(QDialog):
             host = profile.get("host", "localhost")
             port = profile.get("port", "")
             driver = profile.get("driver_type", "")
-            driver_prefix = "PG" if driver == DriverType.POSTGRESQL.value else "MY"
-            label = f"[{driver_prefix}] {name}"
-            summary = f"{host}:{port}"
             search_blob = f"{name} {host} {port} {driver}".lower()
             if query and query not in search_blob:
                 continue
 
-            item = QListWidgetItem(f"{label}\n{summary}")
+            item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, profile_id)
             item.setToolTip(f"{name}\n{driver.upper()}  {host}:{port}")
+            item_widget = self._create_connection_item_widget(profile)
+            item.setSizeHint(item_widget.sizeHint().expandedTo(item_widget.minimumSizeHint()))
             self._connection_list.addItem(item)
+            self._connection_list.setItemWidget(item, item_widget)
 
             if profile_id == current_id:
                 self._connection_list.setCurrentItem(item)
 
         self._connection_list.blockSignals(False)
+        self._update_connection_item_selection_styles()
         self._update_title()
 
     def _get_form_profile(self) -> dict[str, Any]:
@@ -399,6 +461,69 @@ class ConnectionDialog(QDialog):
             "ssh_key": self._ssh_key_input.text().strip(),
         }
 
+    def _create_connection_item_widget(self, profile: dict[str, Any]) -> QWidget:
+        item_widget = QWidget()
+        item_widget.setObjectName("connection-item-widget")
+        item_widget.setMinimumHeight(52)
+        row_layout = QHBoxLayout(item_widget)
+        row_layout.setContentsMargins(6, 8, 6, 8)
+        row_layout.setSpacing(10)
+
+        driver = str(profile.get("driver_type", DriverType.POSTGRESQL.value))
+        icon_name = (
+            "postgresql.svg" if driver == DriverType.POSTGRESQL.value else "mysql.svg"
+        )
+        icon_label = QLabel()
+        icon_label.setObjectName("driver-icon")
+        icon_label.setFixedSize(18, 18)
+        icon_path = _RESOURCES / "icons" / icon_name
+        icon_pixmap = QIcon(str(icon_path)).pixmap(18, 18) if icon_path.exists() else None
+
+        if icon_pixmap and not icon_pixmap.isNull():
+            icon_label.setPixmap(icon_pixmap)
+        else:
+            icon_label.setText("PG" if driver == DriverType.POSTGRESQL.value else "MY")
+            icon_label.setObjectName(
+                "driver-badge-pg"
+                if driver == DriverType.POSTGRESQL.value
+                else "driver-badge-my"
+            )
+            icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon_label.setFixedWidth(30)
+
+        row_layout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        content_layout = QVBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(3)
+
+        name = str(profile.get("name", "Unnamed"))
+        name_label = QLabel(name)
+        name_label.setObjectName("conn-item-name")
+        content_layout.addWidget(name_label)
+
+        host = str(profile.get("host", "localhost"))
+        port = str(profile.get("port", ""))
+        database = str(profile.get("database", "")).strip()
+        detail_text = f"{host}:{port}" if not database else f"{host}:{port} / {database}"
+        detail_label = QLabel(detail_text)
+        detail_label.setObjectName("conn-item-detail")
+        content_layout.addWidget(detail_label)
+
+        row_layout.addLayout(content_layout, stretch=1)
+        return item_widget
+
+    def _update_connection_item_selection_styles(self) -> None:
+        current_item = self._connection_list.currentItem()
+        for index in range(self._connection_list.count()):
+            item = self._connection_list.item(index)
+            widget = self._connection_list.itemWidget(item)
+            if widget is None:
+                continue
+            widget.setProperty("selected", item == current_item)
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+
     def _set_form_profile(self, profile: dict[str, Any]) -> None:
         self._name_input.setText(profile.get("name", ""))
         self._select_driver_card(profile.get("driver_type", DriverType.POSTGRESQL.value))
@@ -413,6 +538,8 @@ class ConnectionDialog(QDialog):
         self._ssh_port_input.setValue(int(profile.get("ssh_port", 22)))
         self._ssh_user_input.setText(profile.get("ssh_user", ""))
         self._ssh_key_input.setText(profile.get("ssh_key", ""))
+        self._on_ssl_toggled(self._ssl_checkbox.isChecked())
+        self._on_ssh_toggled(self._ssh_checkbox.isChecked())
         self._update_title()
         self._delete_btn.setEnabled(self._current_conn_id is not None)
 
@@ -439,6 +566,7 @@ class ConnectionDialog(QDialog):
         self._ssh_port_input.setDisabled(disabled)
         self._ssh_user_input.setDisabled(disabled)
         self._ssh_key_input.setDisabled(disabled)
+        self._ssh_key_browse_btn.setDisabled(disabled or not self._ssh_checkbox.isChecked())
 
         for card in self._driver_cards.values():
             card.setDisabled(disabled)
@@ -466,6 +594,7 @@ class ConnectionDialog(QDialog):
             return
         self._current_conn_id = conn_id
         self._set_form_profile(profile)
+        self._update_connection_item_selection_styles()
         self._set_status("Ready", "normal")
 
     def _on_connection_list_double_clicked(self, item: QListWidgetItem) -> None:
@@ -512,6 +641,7 @@ class ConnectionDialog(QDialog):
     def _on_new_clicked(self) -> None:
         self._current_conn_id = None
         self._connection_list.clearSelection()
+        self._update_connection_item_selection_styles()
         self._set_form_profile({"driver_type": DriverType.POSTGRESQL.value, "port": 5432})
         self._name_input.setFocus()
         self._set_status("New connection", "normal")
@@ -566,6 +696,23 @@ class ConnectionDialog(QDialog):
         self._advanced_toggle.setText(
             "Hide Advanced Options" if visible else "Advanced Options"
         )
+
+    def _on_ssl_toggled(self, checked: bool) -> None:
+        self._ssl_verify_checkbox.setEnabled(checked)
+
+    def _on_ssh_toggled(self, checked: bool) -> None:
+        self._ssh_fields_container.setVisible(checked)
+        self._ssh_key_browse_btn.setEnabled(checked)
+
+    def _on_browse_ssh_key(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select SSH Private Key",
+            self._ssh_key_input.text().strip() or "",
+            "All Files (*)",
+        )
+        if path:
+            self._ssh_key_input.setText(path)
 
     def _on_test_clicked(self) -> None:
         profile = self._get_form_profile()

@@ -1110,6 +1110,26 @@ QWidget#advanced-panel {
     padding: 12px;
 }
 
+QLabel#advanced-section-title {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    background: transparent;
+}
+
+QFrame#advanced-separator {
+    background-color: #e2e8f0;
+    border: none;
+    max-height: 1px;
+}
+
+QWidget#ssh-fields-container {
+    background-color: transparent;
+    border-left: 2px solid #e2e8f0;
+}
+
 /* Checkboxes */
 QCheckBox {
     background-color: transparent;
@@ -1164,6 +1184,20 @@ QSpinBox#ssh-port-input {
     border-radius: 4px;
     padding: 6px 8px;
     font-size: 12px;
+}
+
+QPushButton#ssh-key-browse-btn {
+    background-color: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+}
+
+QPushButton#ssh-key-browse-btn:hover {
+    background-color: #e2e8f0;
+    color: #334155;
 }
 
 /* Action Buttons */
@@ -1261,9 +1295,9 @@ QListWidget#connection-list {
 }
 
 QListWidget#connection-list::item {
-    padding: 10px 12px;
+    padding: 2px;
     border-radius: 4px;
-    margin: 3px 4px;
+    margin: 2px 3px;
 }
 
 QListWidget#connection-list::item:hover {
@@ -1274,6 +1308,53 @@ QListWidget#connection-list::item:selected {
     background-color: #dcfce7;
     color: #3b82f6;
     border: 1px solid #3b82f6;
+}
+
+QWidget#connection-item-widget {
+    background: transparent;
+}
+
+QLabel#driver-icon {
+    background: transparent;
+}
+
+QLabel#driver-badge-pg {
+    background-color: #3b82f6;
+    color: #ffffff;
+    border-radius: 9px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+QLabel#driver-badge-my {
+    background-color: #f97316;
+    color: #ffffff;
+    border-radius: 9px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+QLabel#conn-item-name {
+    color: #1e293b;
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+}
+
+QLabel#conn-item-detail {
+    color: #64748b;
+    font-size: 11px;
+    background: transparent;
+}
+
+QWidget#connection-item-widget[selected="true"] QLabel#conn-item-name {
+    color: #0f172a;
+}
+
+QWidget#connection-item-widget[selected="true"] QLabel#conn-item-detail {
+    color: #1e293b;
 }
 
 QLineEdit#connection-search {
